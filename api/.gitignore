@@ -1,0 +1,50 @@
+# Dependencies
+/node_modules
+/vendor
+
+# Local Config and Secrets
+.env
+.env.backup
+.env.production
+/auth.json
+
+# Generated Files and Cache
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/.phpunit.cache
+.phpunit.result.cache
+
+# Local DBase
+
+
+# AI Helper
+/.codex
+/.zed
+AGENTS.md
+CLAUDE.md
+boost.json
+
+# OS FilesJunk
+Thumbs.db
+.DS_Store
+*.log
+
+# IDE and Code Edit Configs
+/.vscode
+/.idea
+/.cursor/
+/.nova
+.phpactor.json
+
+# Laravel Utilities
+/public/fonts-manifest.dev.json
+/storage/pail
+_ide_helper.php
+
+# Environment / VM Options
+Homestead.json
+Homestead.yaml
+
+
