@@ -1,0 +1,14 @@
+## O que este PR faz
+<!-- Descrição objetiva das mudanças inseridas -->
+
+## Tipo de mudança
+- [ ] Feature (`feat`)
+- [ ] Bug fix (`fix`)
+- [ ] Refactor (`refactor`)
+- [ ] Docs/chore (`docs`/`chore`)
+
+## Checklist
+- [ ] Testes adicionados/atualizados
+- [ ] Rodei `php artisan test` localmente e passou
+- [ ] Sem `dd()`, `dump()` ou código comentado esquecido
+- [ ] Segue o padrão de nomenclatura do repositório
