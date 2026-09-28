@@ -25,5 +25,10 @@ final readonly class Reservationevent
     ){
     }
 
+    public function nights(): int
+    {
+        return (int) $this->checkIn->diff($this->checkOut)->days;
+    }
+
 
 }
