@@ -6,7 +6,7 @@ namespace api\app\Modules\Reservations\Ical\Channels;
 
 use App\Modules\Reservations\DTO\ReservationEvent;
 
-interface Channeladapterinterface{
+interface ChannelAdapterInterface{
     public function channel(): string;
 
     public function parseFeed(string $icalRawText, int $propertyId): array;
