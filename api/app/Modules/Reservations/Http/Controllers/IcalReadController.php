@@ -12,6 +12,6 @@ final class IcalReadController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
-        return 0;
+        return 1;
     }
 }
