@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace api\app\Modules\Reservations\DTO;
 
 use DateTimeImmutable;
+use api\app\Modules\Reservations\Enums\Reservationstatus;
 
 final readonly class Reservationevent
 {
