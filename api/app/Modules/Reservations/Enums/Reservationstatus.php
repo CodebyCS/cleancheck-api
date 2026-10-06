@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Reservations\Enums;
 
-enum Reservationstatus: string
+enum ReservationStatus: string
 {
     case Reserved = 'reserved';
 

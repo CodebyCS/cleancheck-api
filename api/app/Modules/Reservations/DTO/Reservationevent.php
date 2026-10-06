@@ -6,7 +6,7 @@ namespace App\Modules\Reservations\DTO;
 use DateTimeImmutable;
 use api\app\Modules\Reservations\Enums\Reservationstatus;
 
-final readonly class Reservationevent
+final readonly class ReservationEvent
 {
     public function __construct(
         public string $externalUid,
