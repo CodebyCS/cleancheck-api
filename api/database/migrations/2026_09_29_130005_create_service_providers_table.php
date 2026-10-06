@@ -13,7 +13,10 @@ return new class extends Migration
     {
         Schema::create('service_providers', function (Blueprint $table) {
             $table->id();
-            $table->timestamps();
+            $table->foreignId('user_id')->unique()->constrained('users')->cascadeOnDelete();
+            $table->decimal('base_latitude', 10, 7)->nullable();
+            $table->decimal('base_longitude', 10, 7)->nullable();
+
         });
     }
 

@@ -23,7 +23,15 @@ class StoreServiceProviderRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            // tabela users
+            'name'           => ['required', 'string', 'max:255'],
+            'email'          => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password'       => ['required', 'string', 'min:8'],
+            'phone'          => ['nullable', 'string', 'max:20'],
+            'address'        => ['nullable', 'string', 'max:255'],
+            // tabela service_providers
+            'base_latitude'  => ['nullable', 'numeric', 'between:-90,90'],
+            'base_longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ];
     }
 }
