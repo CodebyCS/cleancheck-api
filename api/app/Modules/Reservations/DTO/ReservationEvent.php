@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Modules\Reservations\DTO;
 
 use DateTimeImmutable;
-use api\app\Modules\Reservations\Enums\Reservationstatus;
+use App\Modules\Reservations\Enums\Reservationstatus;
 
 final readonly class ReservationEvent
 {
@@ -12,6 +12,8 @@ final readonly class ReservationEvent
         public string $externalUid,
 
         public int $propertyId,
+
+        public string $channel,
         public DateTimeImmutable $checkIn,
         public DateTimeImmutable $checkOut,
 
