@@ -10,8 +10,8 @@ final class InvalidIcalException extends \RuntimeException
 {
     public function __construct(
         public readonly IcalErrorCode $errorCode,
-        string $message
-    ){
+        string $message,
+    ) {
         parent::__construct($message);
     }
 }
