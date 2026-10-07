@@ -18,7 +18,8 @@ return new class extends Migration
 
             $table->foreignId('property_id')->constrained('properties')->cascadeOnDelete();
 
-            $table->foreignId('service_provider_id')->nullable()->constrained('services_providers')->nullOnDelete();
+            // if delete service_provider, set to null (nullOnDelete)
+            $table->foreignId('service_provider_id')->nullable()->constrained('service_providers')->nullOnDelete();
 
             $table->string('type');
             $table->string('status')->default('pending');
