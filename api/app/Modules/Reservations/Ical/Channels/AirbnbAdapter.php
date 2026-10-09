@@ -9,6 +9,10 @@ use App\Modules\Reservations\DTO\ReservationEvent;
 use App\Modules\Reservations\Enums\ReservationStatus;
 use DateTimeImmutable;
 use Sabre\VObject\Reader;
+use App\Modules\Reservations\Enums\IcalErrorCode;
+use App\Modules\Reservations\Exceptions\InvalidIcalException;
+use Sabre\VObject\Component\VCalendar;
+use Sabre\VObject\ParseException;
 
 final class AirbnbAdapter implements ChannelAdapterInterface
 {
@@ -19,7 +23,21 @@ final class AirbnbAdapter implements ChannelAdapterInterface
 
     public function parseFeed(string $icalRawText, int $propertyId): ParseResult
     {
-        $calendar = Reader::read($icalRawText);
+        //tratar empty
+        if (trim($icalRawText) === '') {
+            throw new InvalidIcalException(IcalErrorCode::EmptyFile, 'O ficheiro está vazio.');
+        }
+
+        //tratar not-vcalendar
+        try {
+            $calendar = Reader::read($icalRawText);
+        } catch (ParseException) {
+            throw new InvalidIcalException(IcalErrorCode::InvalidIcal, 'O ficheiro não é um VCALENDAR válido.');
+        }
+
+        if (! $calendar instanceof VCalendar) {
+            throw new InvalidIcalException(IcalErrorCode::InvalidIcal, 'O ficheiro não é um VCALENDAR válido.');
+        }
 
         $events = [];
 
