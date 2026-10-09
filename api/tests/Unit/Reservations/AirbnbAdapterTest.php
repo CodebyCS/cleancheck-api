@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Modules\Reservations\DTO\ParseResult;
 use App\Modules\Reservations\Ical\Channels\AirbnbAdapter;
 use App\Modules\Reservations\Enums\ReservationStatus;
+use App\Modules\Reservations\Enums\IcalErrorCode;
+use App\Modules\Reservations\Exceptions\InvalidIcalException;
 
 function icalFixture(string $name): string
 {
@@ -45,4 +47,33 @@ it('classifies "Airbnb (Not available)" as blocked', function () {
     expect($event->externalUid)->toBe('fict-0003@cleancheck.test')
         ->and($event->status)->toBe(ReservationStatus::Blocked)
         ->and($event->nights())->toBe(7);
+});
+
+it('extracts the reservation URL from the description', function () {
+    $result = (new AirbnbAdapter())->parseFeed(icalFixture('airbnb-valid.ics'), 1);
+
+    expect($result->events[0]->reservationUrl)
+        ->toBe('https://www.airbnb.com/hosting/reservations/details/HMFICT0001')
+        ->and($result->events[2]->reservationUrl)->toBeNull();
+});
+
+it('reads the sequence when present', function () {
+    $result = (new AirbnbAdapter())->parseFeed(icalFixture('airbnb-valid.ics'), 1);
+
+    expect($result->events[3]->externalUid)->toBe('fict-0004@cleancheck.test')
+        ->and($result->events[3]->sequence)->toBe(1);
+});
+
+it('rejects an empty file with EMPTY_FILE', function () {
+    expect(fn () => (new AirbnbAdapter())->parseFeed(icalFixture('airbnb-empty.ics'), 1))
+        ->toThrow(function (InvalidIcalException $e) {
+            expect($e->errorCode)->toBe(IcalErrorCode::EmptyFile);
+        });
+});
+
+it('rejects a file that is not a VCALENDAR with INVALID_ICAL', function () {
+    expect(fn () => (new AirbnbAdapter())->parseFeed(icalFixture('airbnb-not-vcalendar.ics'), 1))
+        ->toThrow(function (InvalidIcalException $e) {
+            expect($e->errorCode)->toBe(IcalErrorCode::InvalidIcal);
+        });
 });
