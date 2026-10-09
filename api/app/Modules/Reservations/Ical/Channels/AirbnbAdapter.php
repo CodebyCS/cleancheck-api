@@ -30,7 +30,7 @@ final class AirbnbAdapter implements ChannelAdapterInterface
                 channel: $this->channel(),
                 checkIn:DateTimeImmutable::createFromInterface($vevent->DTSTART->getDateTime()),
                 checkOut: DateTimeImmutable::createFromInterface($vevent->DTEND->getDateTime()),
-                status: ReservationStatus::Reserved,
+                status: $this->classify(isset($vevent->SUMMARY) ? (string) $vevent->SUMMARY : null),
                 sequence: isset($vevent->SEQUENCE) ? (int) $vevent->SEQUENCE->getValue() : null,
                 reservationUrl: null,
                 rawSummary: isset($vevent->SUMMARY) ? (string) $vevent->SUMMARY : null,
@@ -38,5 +38,14 @@ final class AirbnbAdapter implements ChannelAdapterInterface
             );
         }
         return new ParseResult($events);
+    }
+
+        private function classify(?string $summary): ReservationStatus
+    {
+        return match ($summary) {
+            'Reserved' => ReservationStatus::Reserved,
+            'Airbnb (Not available)' => ReservationStatus::Blocked,
+            default => ReservationStatus::Unknown,
+        };
     }
 }
