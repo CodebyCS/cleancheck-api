@@ -7,6 +7,7 @@ use App\Modules\Reservations\Ical\Channels\AirbnbAdapter;
 use App\Modules\Reservations\Enums\ReservationStatus;
 use App\Modules\Reservations\Enums\IcalErrorCode;
 use App\Modules\Reservations\Exceptions\InvalidIcalException;
+use App\Modules\Reservations\Enums\IcalWarningCode;
 
 function icalFixture(string $name): string
 {
@@ -76,4 +77,52 @@ it('rejects a file that is not a VCALENDAR with INVALID_ICAL', function () {
         ->toThrow(function (InvalidIcalException $e) {
             expect($e->errorCode)->toBe(IcalErrorCode::InvalidIcal);
         });
+});
+
+it('keeps only the readable events of the invalid feed', function () {
+    $result = (new AirbnbAdapter())->parseFeed(icalFixture('airbnb-invalid.ics'), 1);
+
+    $uids = array_map(fn ($event) => $event->externalUid, $result->events);
+
+    expect($uids)->toBe([
+        'fict-inv-0005@cleancheck.test',
+        'fict-inv-0006@cleancheck.test',
+    ]);
+});
+
+it('reports one warning per problem, in file order', function () {
+    $result = (new AirbnbAdapter())->parseFeed(icalFixture('airbnb-invalid.ics'), 1);
+
+    $codes = array_map(fn ($warning) => $warning->code, $result->warnings);
+    $uids = array_map(fn ($warning) => $warning->uid, $result->warnings);
+
+    expect($codes)->toBe([
+        IcalWarningCode::MissingUid,
+        IcalWarningCode::MissingDates,
+        IcalWarningCode::InvalidDateRange,
+        IcalWarningCode::UnsupportedDateTime,
+        IcalWarningCode::DuplicateUid,
+        IcalWarningCode::UnknownSummary,
+    ])->and($uids)->toBe([
+        null,
+        'fict-inv-0002@cleancheck.test',
+        'fict-inv-0003@cleancheck.test',
+        'fict-inv-0004@cleancheck.test',
+        'fict-inv-0005@cleancheck.test',
+        'fict-inv-0006@cleancheck.test',
+    ]);
+});
+
+it('keeps the first event of a duplicated UID', function () {
+    $result = (new AirbnbAdapter())->parseFeed(icalFixture('airbnb-invalid.ics'), 1);
+
+    expect($result->events[0]->externalUid)->toBe('fict-inv-0005@cleancheck.test')
+        ->and($result->events[0]->checkIn->format('Y-m-d'))->toBe('2026-12-10');
+});
+
+it('keeps an event with an unknown summary as unknown', function () {
+    $result = (new AirbnbAdapter())->parseFeed(icalFixture('airbnb-invalid.ics'), 1);
+
+    expect($result->events[1]->status)->toBe(ReservationStatus::Unknown)
+        ->and($result->events[1]->rawSummary)->toBe('Manutencao');
 });
