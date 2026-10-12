@@ -11,9 +11,22 @@ class TaskController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(): JsonResponse
     {
-        //
+        $tasks = Task::query()
+            ->with('property')
+            ->orderBy('scheduled_start_at')
+            ->get(); 
+
+        return response()->json(
+            $tasks->map(fn (Task $task) => [
+                'id' => $task->id,
+                'property' => $task->property ? $task->property->name : null,
+                'type' => $task->type,
+                'scheduled_start_at' => $task->scheduled_start_at,
+                'status' => $task->status,
+            ])
+        );
     }
 
     /**
