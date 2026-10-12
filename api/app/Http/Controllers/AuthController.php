@@ -13,16 +13,14 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
 
-
-
 class AuthController extends Controller
 {
-    public function loginWeb(LoginRequest $request) : UserResource
+    public function loginWeb(LoginRequest $request): UserResource
     {
         $credentials = $request->only('email', 'password');
         $credentials['is_active'] = true;
 
-        if (!Auth::guard('web')->attempt($credentials)) {
+        if (! Auth::guard('web')->attempt($credentials)) {
             throw ValidationException::withMessages([
                 'email' => ['Email ou password invalidos.'],
             ]);
@@ -33,7 +31,7 @@ class AuthController extends Controller
         return new UserResource($request->user('web'));
     }
 
-    public function logoutWeb(Request $request) : Response
+    public function logoutWeb(Request $request): Response
     {
         Auth::guard('web')->logout();
         $request->session()->invalidate();
@@ -42,17 +40,17 @@ class AuthController extends Controller
         return response()->noContent();
     }
 
-    public function loginMobile(LoginRequest $request) : JsonResponse
+    public function loginMobile(LoginRequest $request): JsonResponse
     {
         $user = User::where('email', $request->input('email'))->first();
 
-        if(
+        if (
             ! $user
             || ! Hash::check($request->input('password'), $user->password)
             || ! $user->is_active
         ) {
             throw ValidationException::withMessages([
-                'email' => ['Email oou password invalidos'],
+                'email' => ['Email ou password invalidos'],
             ]);
         }
 
@@ -70,7 +68,7 @@ class AuthController extends Controller
         ]);
     }
 
-    public function logoutMobile(Request $request) : Response
+    public function logoutMobile(Request $request): Response
     {
         $token = $request->user()->currentAccessToken();
         abort_unless($token instanceof PersonalAccessToken, 403);
