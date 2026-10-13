@@ -11,7 +11,7 @@ enum IcalWarningCode: string
 
      case InvalidDateRange = 'INVALID_DATE_RANGE';
      
-     case UnsupportedDateTime = 'UNSUPPORTED_DATE_TIME';
+     case UnsupportedDateTime = 'UNSUPPORTED_DATETIME';
 
      case DuplicateUid = 'DUPLICATE_UID';
      
