@@ -44,7 +44,7 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+function icalFixture(string $name): string
 {
-    // ..
+    return file_get_contents(__DIR__ . '/Fixtures/ical/' . $name);
 }

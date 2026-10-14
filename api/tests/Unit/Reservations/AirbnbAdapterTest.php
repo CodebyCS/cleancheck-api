@@ -9,10 +9,6 @@ use App\Modules\Reservations\Enums\IcalErrorCode;
 use App\Modules\Reservations\Exceptions\InvalidIcalException;
 use App\Modules\Reservations\Enums\IcalWarningCode;
 
-function icalFixture(string $name): string
-{
-    return file_get_contents(__DIR__ . '/../../Fixtures/ical/' . $name);
-}
 
 it('reads the valid Airbnb feed into 4 events without warnings', function () {
     $adapter = new AirbnbAdapter();
