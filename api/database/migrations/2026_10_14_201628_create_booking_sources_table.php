@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('booking_sources', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('property_id')->constrained()->restrictOnDelete();
+            $table->unsignedBigInteger('property_id')->index();
             $table->string('channel', 20);
             $table->string('type', 10);
             $table->text('url')->nullable();
