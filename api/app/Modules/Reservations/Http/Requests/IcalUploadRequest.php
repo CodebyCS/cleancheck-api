@@ -9,7 +9,7 @@ use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
-final class IcalReadRequest extends FormRequest
+final class IcalUploadRequest extends FormRequest
 {
     public function authorize(): bool
     {
