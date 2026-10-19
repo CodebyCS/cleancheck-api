@@ -32,3 +32,4 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     // Route Tasks
     Route::get('/tasks', [TaskController::class, 'index']);
 });
+});
