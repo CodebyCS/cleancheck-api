@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function (): JsonResponse {
@@ -20,4 +21,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
         return new UserResource($request->user());
     });
     Route::post('/mobile/logout', [AuthController::class, 'logoutMobile']);
+    
+    // Route Tasks
+    Route::get('/tasks', [TaskController::class, 'index']);
 });

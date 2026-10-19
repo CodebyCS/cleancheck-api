@@ -32,8 +32,6 @@ O serviço MySQL deve estar em execução.
 
 ### 1. Clonar o repositório
 
-Substitui `PROPRIETARIO` pelo utilizador ou organização do GitHub:
-
 ```bash
 git clone https://github.com/CodebyCS/cleancheck-api.git
 cd cleancheck-api
@@ -84,8 +82,6 @@ DB_DATABASE=cleancheck
 DB_USERNAME=teu_utilizador
 DB_PASSWORD=tua_password
 ```
-
-Cada elemento da equipa utiliza a sua própria base de dados local.
 
 ### 5. Gerar a chave da aplicação
 
