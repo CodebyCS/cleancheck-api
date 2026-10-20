@@ -2,24 +2,12 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Reservations\Http\Controllers\IcalImportController;
+use App\Modules\Reservations\Http\Controllers\IcalReadController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Modules\Reservations\Http\Controllers\IcalReadController;
-use App\Modules\Reservations\Http\Controllers\IcalImportController;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/reservations/ical/read', IcalReadController::class);
-});
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/reservations/ical/read', IcalReadController::class);
-    Route::post('/reservations/ical/import', IcalImportController::class);
-});
 Route::get('/health', function (): JsonResponse {
     return response()->json([
         'application' => 'CleanCheck', 'status' => 'ok',
@@ -34,4 +22,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
         return new UserResource($request->user());
     });
     Route::post('/mobile/logout', [AuthController::class, 'logoutMobile']);
+});
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::post('/reservations/ical/read', IcalReadController::class);
+    Route::post('/reservations/ical/import', IcalImportController::class);
 });
