@@ -7,24 +7,26 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/reservations/ical/read', IcalReadController::class);
+// Public Diagnosis
 Route::get('/health', function (): JsonResponse {
     return response()->json([
         'application' => 'CleanCheck', 'status' => 'ok',
     ]);
 });
 
+// The login must be accessible without authentication.
 Route::post('/mobile/login', [AuthController::class, 'loginMobile'])
     ->middleware('throttle:5,1');
 
-Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
-    Route::get('/user', function (Request $request): UserResource {
+// Allow an authenticated mobile session to be terminated.
+Route::post('/mobile/logout', [AuthController::class, 'logoutMobile'])
+    ->middleware('auth:sanctum');
+
+// Transactions that require identification and an active account.
+Route::middleware(['auth:sanctum', 'active'])->group(function () {
+    Route::get('/user', function (Request $request) {
         return new UserResource($request->user());
     });
-    Route::post('/mobile/logout', [AuthController::class, 'logoutMobile']);
+
+    Route::post('/reservations/ical/read', IcalReadController::class);
 });

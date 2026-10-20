@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\User;
+use App\Models\Role;
 
 class DemoUserSeeder extends Seeder
 {
@@ -29,7 +30,9 @@ class DemoUserSeeder extends Seeder
         foreach ($accounts as [$name, $email, $role]) {
             $user = User::firstOrNew(['email' => $email]);
             $user->name = $name;
-            $user->role = $role;
+            $user->role()->associate(
+                Role::where('name', $role)->firstOrFail()
+            );
             $user->is_active = true;
             $user->password = 'Demo-Local-2026!';
             $user->save();
