@@ -2,18 +2,13 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Reservations\Http\Controllers\IcalImportController;
+use App\Modules\Reservations\Http\Controllers\IcalReadController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
-use App\Modules\Reservations\Http\Controllers\IcalReadController;
+use App\Http\Controllers\TaskController;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/reservations/ical/read', IcalReadController::class);
 Route::get('/health', function (): JsonResponse {
     return response()->json([
         'application' => 'CleanCheck', 'status' => 'ok',
@@ -28,8 +23,16 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
         return new UserResource($request->user());
     });
     Route::post('/mobile/logout', [AuthController::class, 'logoutMobile']);
-    
-    // Route Tasks
+
+     // Route Tasks
     Route::get('/tasks', [TaskController::class, 'index']);
+    Route::post('/tasks', [TaskController::class, 'store']);
+    Route::patch('/tasks/{task}', [TaskController::class, 'update'])->whereNumber('task');
+    Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->whereNumber('task');
+    Route::post('/tasks/{task}/restore', [TaskController::class, 'restore'])->whereNumber('task');
 });
+
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::post('/reservations/ical/read', IcalReadController::class);
+    Route::post('/reservations/ical/import', IcalImportController::class);
 });

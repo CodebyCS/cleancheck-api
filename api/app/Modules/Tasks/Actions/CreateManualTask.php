@@ -33,7 +33,7 @@ class CreateManualTask
         if ($existing) {
             throw ValidationException::withMessages([
                 'booking_id' => $existing->trashed()
-                    ? 'Já existe uma inspeção eliminada para esta reserva.'
+                    ? 'Já existe uma inspeção eliminada para esta reserva. Use a opção de restaurar.'
                     : 'Já existe uma tarefa de inspeção para esta reserva.',
             ]);
         }

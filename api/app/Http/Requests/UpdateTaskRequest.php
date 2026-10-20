@@ -12,7 +12,7 @@ class UpdateTaskRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -23,7 +23,9 @@ class UpdateTaskRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'service_provider_id' => ['sometimes', 'nullable', 'integer', 'exists:service_providers,id'],
+            'agreed_amount'       => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'notes'               => ['sometimes', 'nullable', 'string', 'max:2000'],
         ];
     }
 }

@@ -2,9 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Task;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
+use App\Models\Task;
+use App\Modules\Tasks\Actions\CreateManualTask;
+use App\Modules\Tasks\Actions\DeleteTask;
+use App\Modules\Tasks\Actions\RestoreTask;
+use App\Modules\Tasks\Actions\UpdateTask;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 
 class TaskController extends Controller
 {
@@ -30,50 +36,35 @@ class TaskController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreTaskRequest $request)
+    public function store(StoreTaskRequest $request, CreateManualTask $action): JsonResponse
     {
-        //
-    }
+        $task = $action->execute($request->integer('booking_id'));
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Task $task)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Task $task)
-    {
-        //
+        return response()->json($task, 201);
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateTaskRequest $request, Task $task)
+    public function update(UpdateTaskRequest $request, int $task, UpdateTask $action): JsonResponse
     {
-        //
+        return response()->json($action->manual($task, $request->validated()));
+    }
+
+    public function restore(int $task, RestoreTask $action): JsonResponse
+    {
+        return response()->json($action->manual($task));
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Task $task)
+    public function destroy(int $task, DeleteTask $action): Response
     {
-        //
+        $action->manual($task);
+
+        return response()->noContent();
     }
 }
