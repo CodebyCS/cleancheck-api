@@ -5,6 +5,9 @@ declare(strict_types=1);
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
 
 const ICAL_READ_URL = '/api/reservations/ical/read';
 
@@ -15,7 +18,11 @@ function icalUpload(string $fixture, ?string $clientName = null): UploadedFile
 
 function actingAsHost(): void
 {
-    Sanctum::actingAs(User::factory()->make());
+    $user = User::factory()->create([
+        'is_active' => true,
+    ]);
+
+    Sanctum::actingAs($user);
 }
 
 it('returns 200 with the events of a valid file', function () {
