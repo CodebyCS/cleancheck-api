@@ -6,7 +6,7 @@ namespace App\Modules\Reservations\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Reservations\Exceptions\InvalidIcalException;
-use App\Modules\Reservations\Http\Requests\IcalReadRequest;
+use App\Modules\Reservations\Http\Requests\IcalUploadRequest;
 use App\Modules\Reservations\Http\Resources\IcalReadResource;
 use App\Modules\Reservations\Ical\Channels\AirbnbAdapter;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +18,7 @@ final class IcalReadController extends Controller
     ) {
     }
 
-    public function __invoke(IcalReadRequest $request): JsonResponse
+    public function __invoke(IcalUploadRequest $request): JsonResponse
     {
         $propertyId = $request->integer('property_id');
 

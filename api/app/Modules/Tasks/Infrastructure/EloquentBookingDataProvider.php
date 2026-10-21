@@ -2,16 +2,19 @@
 
 namespace App\Modules\Tasks\Infrastructure;
 
-use App\Models\Booking;
+use App\Modules\Reservations\Models\Booking;
 use App\Modules\Tasks\Contracts\BookingDataProvider;
 use App\Modules\Tasks\Support\BookingSnapshot;
 use Illuminate\Support\Carbon;
+use App\Modules\Reservations\Enums\ReservationStatus;
 
 class EloquentBookingDataProvider implements BookingDataProvider
 {
     public function find(int $bookingId): ?BookingSnapshot
     {
-        $booking = Booking::with('bookingSource')->find($bookingId);
+        $booking = Booking::with('bookingSource')
+            ->where('status', ReservationStatus::Reserved)
+            ->find($bookingId);
 
         if (!$booking) {
             return null;
@@ -37,6 +40,7 @@ class EloquentBookingDataProvider implements BookingDataProvider
             ->selectRaw('COALESCE(overridden_check_in_at, source_check_in_at) as effective_check_in')
             ->whereHas('bookingSource', fn ($q) => $q->where('property_id', $propertyId))
             ->where('id', '!=', $bookingId)
+            ->where('status', ReservationStatus::Reserved)
             ->whereRaw('DATE(COALESCE(overridden_check_in_at, source_check_in_at)) >= ?', [$checkOut->toDateString()])
             ->orderBy('effective_check_in')
             ->first();

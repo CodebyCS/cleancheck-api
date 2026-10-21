@@ -1,12 +1,18 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Tasks;
 
-use App\Modules\Tasks\Actions\CreateCheckoutCleaningTask;
 use App\Models\Task;
+use App\Modules\Tasks\Actions\CreateCheckoutCleaningTask;
+use App\Modules\Tasks\Contracts\BookingDataProvider;
 use App\Modules\Tasks\Services\CleaningSchedule;
+use App\Modules\Tasks\Support\BookingSnapshot;
+use App\Modules\Tasks\Validators\TaskGenerationValidator;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class CreateCheckoutCleaningTaskTest extends TestCase
@@ -21,20 +27,8 @@ class CreateCheckoutCleaningTaskTest extends TestCase
             'database.connections.sqlite.foreign_key_constraints' => false,
         ]);
 
-        \DB::purge('sqlite');
-        \DB::setDefaultConnection('sqlite');
-
-        Schema::create('bookings', function (Blueprint $table) {
-            $table->id();
-        });
-
-        Schema::create('properties', function (Blueprint $table) {
-            $table->id();
-        });
-
-        Schema::create('service_providers', function (Blueprint $table) {
-            $table->id();
-        });
+        DB::purge('sqlite');
+        DB::setDefaultConnection('sqlite');
 
         Schema::create('tasks', function (Blueprint $table) {
             $table->id();
@@ -56,57 +50,149 @@ class CreateCheckoutCleaningTaskTest extends TestCase
         });
     }
 
+    private function snapshot(): BookingSnapshot
+    {
+        return new BookingSnapshot(
+            bookingId: 1,
+            propertyId: 10,
+            checkIn: Carbon::parse('2026-10-18 15:00:00'),
+            checkOut: Carbon::parse('2026-10-20 10:00:00'),
+            nextCheckIn: null,
+        );
+    }
+
+    private function makeAction(
+        ?BookingSnapshot $snapshot
+    ): CreateCheckoutCleaningTask {
+        $bookings = $this->createMock(BookingDataProvider::class);
+
+        $bookings->method('find')
+            ->with(1)
+            ->willReturn($snapshot);
+
+        $validator = $this->createMock(TaskGenerationValidator::class);
+
+        $validator->method('validateCheckoutCleaning')
+            ->willReturnCallback(static function (BookingSnapshot $data): void {
+                if (!$data->propertyId || !$data->checkOut) {
+                    throw ValidationException::withMessages([
+                        'booking_id' => 'Dados inválidos para criar a tarefa.',
+                    ]);
+                }
+            });
+
+        return new CreateCheckoutCleaningTask(
+            $bookings,
+            new CleaningSchedule(),
+            $validator,
+        );
+    }
+
     public function test_it_creates_a_checkout_cleaning_task(): void
     {
-        $action = new CreateCheckoutCleaningTask(
-            new CleaningSchedule()
-        );
+        $action = $this->makeAction($this->snapshot());
 
-        $task = $action->execute(
-            1,
-            10,
-            'checkout_cleaning',
-            new \DateTimeImmutable('2026-10-20 10:00:00')
-        );
+        $task = $action->execute(1);
 
         $this->assertInstanceOf(Task::class, $task);
         $this->assertSame('checkout_cleaning', $task->type);
         $this->assertSame('pending', $task->status);
-        $this->assertDatabaseHas('tasks', [
-            'id' => $task->id,
-            'booking_id' => 1,
-            'property_id' => 10,
-        ]);
+        $this->assertSame(1, $task->booking_id);
+        $this->assertSame(10, $task->property_id);
 
         $this->assertSame(
             '2026-10-20 11:30:00',
             $task->scheduled_start_at->format('Y-m-d H:i:s')
         );
+
+        $this->assertNull($task->scheduled_end_at);
+
+        $this->assertDatabaseHas('tasks', [
+            'id' => $task->id,
+            'booking_id' => 1,
+            'property_id' => 10,
+            'type' => 'checkout_cleaning',
+        ]);
     }
 
-    public function test_repeating_generation_does_not_duplicate_task(): void
+    public function test_it_returns_existing_task_without_creating_a_duplicate(): void
     {
-        $action = new CreateCheckoutCleaningTask(
-            new CleaningSchedule()
-        );
+        $existing = Task::create([
+            'booking_id' => 1,
+            'property_id' => 10,
+            'type' => 'checkout_cleaning',
+            'status' => 'pending',
+            'scheduled_start_at' => '2026-10-20 11:30:00',
+        ]);
 
-        $date = new \DateTimeImmutable('2026-10-20 10:00:00');
+        $action = $this->makeAction($this->snapshot());
 
-        $first = $action->execute(
-            1,
-            10,
-            'checkout_cleaning',
-            $date
-        );
+        $result = $action->execute(1);
 
-        $second = $action->execute(
-            1,
-            10,
-            'checkout_cleaning',
-            $date
-        );
-
-        $this->assertSame($first->id, $second->id);
+        $this->assertSame($existing->id, $result->id);
         $this->assertSame(1, Task::count());
+    }
+
+    public function test_it_does_not_recreate_a_soft_deleted_task(): void
+    {
+        $existing = Task::create([
+            'booking_id' => 1,
+            'property_id' => 10,
+            'type' => 'checkout_cleaning',
+            'status' => 'pending',
+            'scheduled_start_at' => '2026-10-20 11:30:00',
+        ]);
+
+        $existing->delete();
+
+        $action = $this->makeAction($this->snapshot());
+
+        $result = $action->execute(1);
+
+        $this->assertNull($result);
+        $this->assertSame(1, Task::withTrashed()->count());
+        $this->assertSoftDeleted('tasks', ['id' => $existing->id]);
+    }
+
+    public function test_it_rejects_a_missing_booking_snapshot(): void
+    {
+        $action = $this->makeAction(null);
+
+        try {
+            $action->execute(1);
+            $this->fail('Era esperada uma ValidationException.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                'Reserva não encontrada.',
+                $exception->errors()['booking_id'][0]
+            );
+        }
+
+        $this->assertSame(0, Task::count());
+    }
+
+    public function test_it_does_not_create_a_task_when_validation_fails(): void
+    {
+        $snapshot = new BookingSnapshot(
+            bookingId: 1,
+            propertyId: null,
+            checkIn: Carbon::parse('2026-10-18 15:00:00'),
+            checkOut: Carbon::parse('2026-10-20 10:00:00'),
+            nextCheckIn: null,
+        );
+
+        $action = $this->makeAction($snapshot);
+
+        try {
+            $action->execute(1);
+            $this->fail('Era esperada uma ValidationException.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                'Dados inválidos para criar a tarefa.',
+                $exception->errors()['booking_id'][0]
+            );
+        }
+
+        $this->assertSame(0, Task::count());
     }
 }

@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Modules\Tasks\Http\Controllers;
 
-use App\Http\Requests\StoreTaskRequest;
-use App\Http\Requests\UpdateTaskRequest;
+use App\Http\Controllers\Controller;
+use App\Modules\Tasks\Http\Requests\StoreTaskRequest;
+use App\Modules\Tasks\Http\Requests\UpdateTaskRequest;
 use App\Models\Task;
 use App\Modules\Tasks\Actions\CreateManualTask;
 use App\Modules\Tasks\Actions\DeleteTask;

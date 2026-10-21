@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-use App\Models\Booking;
+use App\Modules\Reservations\Models\Booking;
 use App\Models\Property;
 use App\Models\ServiceProvider;
 

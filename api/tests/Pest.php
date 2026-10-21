@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 /*
@@ -47,4 +48,9 @@ expect()->extend('toBeOne', function () {
 function icalFixture(string $name): string
 {
     return file_get_contents(__DIR__ . '/Fixtures/ical/' . $name);
+}
+
+function icalUpload(string $fixture, ?string $clientName = null): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent($clientName ?? $fixture, icalFixture($fixture));
 }

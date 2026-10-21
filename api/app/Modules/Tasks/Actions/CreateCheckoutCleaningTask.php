@@ -7,6 +7,7 @@ use App\Modules\Tasks\Contracts\BookingDataProvider;
 use App\Modules\Tasks\Services\CleaningSchedule;
 use App\Modules\Tasks\Validators\TaskGenerationValidator;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class CreateCheckoutCleaningTask
 {
@@ -36,13 +37,17 @@ class CreateCheckoutCleaningTask
 
         $schedule = $this->cleaningSchedule->calculate($type, $data->checkOut, $data->nextCheckIn);
 
-        return Task::create([
-            'booking_id'         => $bookingId,
-            'property_id'        => $data->propertyId,
-            'type'               => $type,
-            'status'             => 'pending',
-            'scheduled_start_at' => $schedule['scheduled_start_at'],
-            'scheduled_end_at'   => $schedule['scheduled_end_at'],
-        ]);
+        try {
+            return Task::create([
+                'booking_id'         => $bookingId,
+                'property_id'        => $data->propertyId,
+                'type'               => $type,
+                'status'             => 'pending',
+                'scheduled_start_at' => $schedule['scheduled_start_at'],
+                'scheduled_end_at'   => $schedule['scheduled_end_at'],
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            return Task::where('booking_id', $bookingId)->where('type', $type)->first();
+        }
     }
 }
