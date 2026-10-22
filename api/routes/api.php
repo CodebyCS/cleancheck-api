@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Tasks\Http\Controllers\TaskController;
 use App\Modules\Reservations\Http\Controllers\IcalImportController;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
 use Illuminate\Http\JsonResponse;
@@ -30,6 +31,14 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     });
 
     Route::post('/reservations/ical/read', IcalReadController::class);
+
+    // Route Tasks
+    Route::get('/tasks', [TaskController::class, 'index']);
+
+    Route::post('/tasks', [TaskController::class, 'store']);
+    Route::patch('/tasks/{task}', [TaskController::class, 'update'])->whereNumber('task');
+    Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->whereNumber('task');
+    Route::post('/tasks/{task}/restore', [TaskController::class, 'restore'])->whereNumber('task');
 });
 
 Route::middleware('auth:sanctum')->group(function (): void {
