@@ -10,11 +10,16 @@ use App\Modules\Reservations\Enums\ReservationStatus;
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Reservations\Models\BookingSource;
 use App\Modules\Reservations\Models\SyncRun;
+use App\Modules\Tasks\Actions\CreateCheckoutCleaningTask;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 final class BookingImportService
 {
+    public function __construct(
+        private readonly CreateCheckoutCleaningTask $createCleaningTask,
+    ) {}
+
     public function import(int $propertyId, string $channel, ParseResult $result): ImportResult
     {
         $source = BookingSource::firstOrCreate(
@@ -88,6 +93,11 @@ final class BookingImportService
             }
         }
 
+        // Second pass: every booking is saved first, so each task can find the next check-in.
+        foreach (array_merge($created, $existing) as $booking) {
+            $this->createCleaningTask->execute($booking->id);
+        }
+
         return new ImportResult($created, $existing, $ambiguous, $skipped, $result->warnings);
     }
-}
+}s
