@@ -51,7 +51,7 @@ class TaskController extends Controller
      */
     public function update(UpdateTaskRequest $request, int $task, UpdateTask $action): JsonResponse
     {
-        return response()->json($action->manual($task, $request->validated()));
+        return response()->json($action->manual($task, $request->validated(), $request->user()->id));
     }
 
     public function restore(int $task, RestoreTask $action): JsonResponse

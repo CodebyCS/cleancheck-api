@@ -7,6 +7,7 @@ use App\Modules\Tasks\Contracts\BookingDataProvider;
 use App\Modules\Tasks\Services\CleaningSchedule;
 use App\Modules\Tasks\Validators\TaskGenerationValidator;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -68,18 +69,65 @@ class UpdateTask
         }
     }
 
-    public function manual(int $taskId, array $data): Task
+    public function manual(int $taskId, array $data, int $userId): Task
     {
-        $task = Task::findOrFail($taskId);
+        return DB::transaction(function () use ($taskId, $data, $userId): Task {
+            $task = Task::whereKey($taskId)->lockForUpdate()->firstOrFail();
+            $changes = Arr::only($data, self::EDITABLE_FIELDS);
+            $assignmentChanged = false;
 
-        if ($task->status === 'completed') {
-            throw ValidationException::withMessages([
-                'status' => 'Não é possível editar uma tarefa concluída.',
-            ]);
-        }
+            if (array_key_exists('service_provider_id', $changes)) {
+                $providerId = $changes['service_provider_id'];
+                if ($providerId === null) {
+                    throw ValidationException::withMessages([
+                        'service_provider_id' => 'A remoção da atribuição não é permitida.',
+                    ]);
+                }
+                $activeProvider = DB::table('service_providers')
+                    ->join('users', 'users.id', '=', 'service_providers.user_id')
+                    ->where('service_providers.id', $providerId)
+                    ->where('users.is_active', true)
+                    ->lockForUpdate()
+                    ->exists();
+                if (! $activeProvider) {
+                    throw ValidationException::withMessages([
+                        'service_provider_id' => 'O prestador não existe ou está inativo.',
+                    ]);
+                }
+                if ((string) $providerId === (string) $task->service_provider_id) {
+                    unset($changes['service_provider_id']);
+                } elseif ($task->service_provider_id === null && $task->status !== 'pending') {
+                    throw ValidationException::withMessages([
+                        'service_provider_id' => 'A primeira atribuição só é permitida para tarefas pendentes.',
+                    ]);
+                } else {
+                    $assignmentChanged = true;
+                }
+            }
 
-        $task->update(Arr::only($data, self::EDITABLE_FIELDS));
+            if ($changes === []) {
+                return $task;
+            }
 
-        return $task;
+            if ($task->status === 'completed') {
+                throw ValidationException::withMessages([
+                    'status' => 'Não é possível editar uma tarefa concluída.',
+                ]);
+            }
+
+            $previousProviderId = $task->service_provider_id;
+            $task->update($changes);
+
+            if ($assignmentChanged) {
+                $task->assignmentHistory()->create([
+                    'previous_service_provider_id' => $previousProviderId,
+                    'new_service_provider_id' => $task->service_provider_id,
+                    'user_id' => $userId,
+                    'created_at' => now(),
+                ]);
+            }
+
+            return $task;
+        });
     }
 }
