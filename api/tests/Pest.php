@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
@@ -53,4 +55,12 @@ function icalFixture(string $name): string
 function icalUpload(string $fixture, ?string $clientName = null): UploadedFile
 {
     return UploadedFile::fake()->createWithContent($clientName ?? $fixture, icalFixture($fixture));
+}
+
+function userWithRole(string $role): User
+{
+    return User::factory()->create([
+        'role_id' => Role::where('name', $role)->firstOrFail()->id,
+        'is_active' => true,
+    ]);
 }
