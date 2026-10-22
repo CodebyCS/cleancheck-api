@@ -159,3 +159,60 @@ it('rolls back the assignment when history creation fails', function () {
     expect($task->fresh()->service_provider_id)->toBe($old->id)
         ->and($task->assignmentHistory()->count())->toBe(0);
 });
+
+it('changes task access between providers after reassignment and preserves history', function () {
+    $a = assignmentProvider();
+    $b = assignmentProvider();
+    $task = assignmentTask();
+    $admin = userWithRole('admin');
+    $this->actingAs($admin, 'sanctum')
+        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $a->id])->assertOk();
+
+    $this->actingAs($a->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
+    $this->getJson("/api/tasks/{$task->id}")->assertOk()->assertJsonPath('id', $task->id);
+    $this->actingAs($b->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+    $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
+
+    $this->actingAs($admin, 'sanctum')
+        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $b->id])->assertOk();
+    $this->actingAs($a->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+    $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
+    $this->actingAs($b->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
+    $this->getJson("/api/tasks/{$task->id}")->assertOk()->assertJsonPath('id', $task->id);
+    expect($task->assignmentHistory()->count())->toBe(2)
+        ->and($task->assignmentHistory()->orderBy('id')->first()->new_service_provider_id)->toBe($a->id);
+
+    $this->actingAs($admin, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
+    $this->getJson("/api/tasks/{$task->id}")->assertOk();
+});
+
+it('denies task access without authentication or without a provider record', function () {
+    $task = assignmentTask();
+    $this->getJson('/api/tasks')->assertUnauthorized();
+    $this->getJson("/api/tasks/{$task->id}")->assertUnauthorized();
+    $this->actingAs(userWithRole('prestador'), 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+    $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
+});
+
+it('forbids providers from modifying or deleting tasks through other routes', function () {
+    $a = assignmentProvider();
+    $task = assignmentTask('pending', $a->id);
+    $this->actingAs($a->user, 'sanctum');
+    $this->patchJson("/api/tasks/{$task->id}", ['notes' => 'changed'])->assertForbidden();
+    $this->deleteJson("/api/tasks/{$task->id}")->assertForbidden();
+    $this->postJson("/api/tasks/{$task->id}/restore")->assertForbidden();
+    $this->postJson('/api/tasks', ['booking_id' => $task->booking_id])->assertForbidden();
+    expect($task->fresh()->notes)->toBeNull()->and($task->fresh()->deleted_at)->toBeNull();
+});
+
+it('hides deleted tasks and rejects inactive accounts', function () {
+    $provider = assignmentProvider();
+    $task = assignmentTask('pending', $provider->id);
+    $task->delete();
+    $this->actingAs($provider->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+    $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
+    $provider->user->is_active = false;
+    $provider->user->save();
+    $this->getJson('/api/tasks')->assertUnauthorized();
+    $this->getJson("/api/tasks/{$task->id}")->assertUnauthorized();
+});

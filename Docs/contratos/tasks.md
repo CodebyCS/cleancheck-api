@@ -93,6 +93,12 @@ Lista de tarefas ordenada por `scheduled_start_at`. Cada elemento inclui:
 - `scheduled_start_at`
 - `status`
 
+Administradores e supervisores veem todas as tarefas não apagadas. Prestadores veem apenas as tarefas atualmente atribuídas ao seu registo; sem registo de prestador, a lista está vazia. Uma reatribuição muda imediatamente o acesso na próxima consulta.
+
+### `GET /api/tasks/{task}`
+
+Devolve `id`, `property`, `address`, `type`, `status`, `scheduled_start_at`, `scheduled_end_at`, `started_at` e `completed_at`. Um prestador só pode consultar tarefas que lhe estejam atualmente atribuídas. Uma tarefa inexistente, apagada ou atribuída a outro prestador devolve `404`.
+
 ### `POST /api/tasks`
 
 Cria uma inspeção (`checkin_inspection`) para uma reserva.
@@ -144,7 +150,7 @@ Restaura uma task apagada. Resposta `200` com a task. Erro `404` se a task não 
 
 ### Permissões
 
-O envio de `service_provider_id` no `PATCH` está limitado a administrator e supervisor. As permissões para os restantes campos e rotas de escrita ainda estão por definir; por agora aceitam utilizadores autenticados e ativos.
+As rotas de escrita (`POST`, `PATCH`, `DELETE` e `restore`) estão limitadas a administrator e supervisor. O prestador consulta apenas as suas tarefas na lista e no detalhe.
 
 ## 7. Dependências e limitações
 
@@ -239,7 +245,6 @@ Valores fictícios. A resposta real ainda necessita de validação através de u
 
 ## 10. Trabalho futuro
 
-- Aplicar as permissões de administrator e supervisor às rotas de escrita.
 - Recalcular a limpeza da reserva anterior quando um check-in muda.
 - Tratar pedidos simultâneos na criação do checkout.
 - Horário de 11:30 e 14:30 em hora local da propriedade.

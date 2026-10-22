@@ -14,8 +14,7 @@ class UpdateTaskRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return ! array_key_exists('service_provider_id', $this->all())
-            || ($this->user()?->hasRole('admin', 'supervisor') ?? false);
+        return $this->user()?->hasRole('admin', 'supervisor') ?? false;
     }
 
     /**
