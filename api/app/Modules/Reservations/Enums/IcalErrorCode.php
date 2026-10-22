@@ -10,4 +10,5 @@ enum IcalErrorCode: string
     case EmptyFile = 'EMPTY_FILE';
     case InvalidIcal = 'INVALID_ICAL';
     case PropertyNotFound = 'PROPERTY_NOT_FOUND';
+    case TaskGenerationFailed = 'TASK_GENERATION_FAILED';
 }
