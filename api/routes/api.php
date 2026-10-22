@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
-use App\Modules\Tasks\Http\Controllers\TaskController;
+use App\Modules\Properties\Http\Controllers\PropertyController;
+use App\Modules\Properties\Http\Controllers\ServiceProviderController;
 use App\Modules\Reservations\Http\Controllers\IcalImportController;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
+use App\Modules\Tasks\Http\Controllers\TaskController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +41,12 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::patch('/tasks/{task}', [TaskController::class, 'update'])->whereNumber('task');
     Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->whereNumber('task');
     Route::post('/tasks/{task}/restore', [TaskController::class, 'restore'])->whereNumber('task');
+
+    Route::get('/properties', [PropertyController::class, 'index']);
+    Route::post('/properties', [PropertyController::class, 'store']);
+
+    Route::get('/service-providers', [ServiceProviderController::class, 'index']);
+    Route::post('/service-providers', [ServiceProviderController::class, 'store']);
 });
 
 Route::middleware('auth:sanctum')->group(function (): void {
