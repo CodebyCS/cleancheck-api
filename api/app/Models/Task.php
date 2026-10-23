@@ -7,8 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 use App\Modules\Reservations\Models\Booking;
-use App\Models\Property;
-use App\Models\ServiceProvider;
+use App\Modules\Properties\Models\Property;
+use App\Modules\Properties\Models\ServiceProvider;
 
 class Task extends Model
 {
@@ -50,6 +50,11 @@ class Task extends Model
 
     public function serviceProvider(){
         return $this->belongsTo(ServiceProvider::class);
+    }
+
+    public function assignmentHistory()
+    {
+        return $this->hasMany(TaskAssignmentHistory::class);
     }
 
 }

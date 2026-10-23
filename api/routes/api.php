@@ -36,6 +36,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     // Route Tasks
     Route::get('/tasks', [TaskController::class, 'index']);
+    Route::get('/tasks/{task}', [TaskController::class, 'show'])->whereNumber('task');
 
     Route::post('/tasks', [TaskController::class, 'store']);
     Route::patch('/tasks/{task}', [TaskController::class, 'update'])->whereNumber('task');
