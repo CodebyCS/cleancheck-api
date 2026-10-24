@@ -28,7 +28,21 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        return new UserResource($request->user('web'));
+        $expiresAt = $request->boolean('remember')
+            ? now()->addDays(30)
+            : now()->addHours(2);
+        $request->session()->put(
+            'access_expires_at', $expiresAt->timestamp
+        );
+
+
+        return (new UserResource($request->user('web')))
+            ->additional([
+                'meta' => [
+                    'expires_at' => $expiresAt->toIso8601String(),
+                ],
+            ]);
+
     }
 
     public function logoutWeb(Request $request): Response
@@ -54,7 +68,10 @@ class AuthController extends Controller
             ]);
         }
 
-        $expiresAt = now()->addHours(2);
+        $expiresAt = $request->boolean('remember')
+            ? now()->addDays(30)
+            : now()->addHours(2);
+
         $token = $user->createToken(
             $request->input('device_name', 'mobile'),
             ['*'],

@@ -27,9 +27,19 @@ Route::post('/mobile/logout', [AuthController::class, 'logoutMobile'])
     ->middleware('auth:sanctum');
 
 // Transactions that require identification and an active account.
-Route::middleware(['auth:sanctum', 'active'])->group(function () {
+Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
     Route::get('/user', function (Request $request) {
-        return new UserResource($request->user());
+            $token = $request->user()->currentAccessToken();
+            $expiresAt = $token instanceof
+                \Laravel\Sanctum\PersonalAccessToken
+                ? $token->expires_at?->toIso8601String()
+                : \Carbon\CarbonImmutable::createFromTimestamp(
+                    (int) $request->session()->get('access_expires_at')
+                )->toIso8601String();
+
+            return (new UserResource($request->user()))
+                ->additional(['meta' => ['expires_at' => $expiresAt]]);
+
     });
 
     Route::post('/reservations/ical/read', IcalReadController::class);
@@ -49,6 +59,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/service-providers', [ServiceProviderController::class, 'store']);
 });
 
+
+//TODO: Rotas repetida / fora da operação de verificação
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/reservations/ical/read', IcalReadController::class);
     Route::post('/reservations/ical/import', IcalImportController::class);
