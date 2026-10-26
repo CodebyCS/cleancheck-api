@@ -3,15 +3,17 @@
 declare(strict_types=1);
 
 use App\Models\User;
-use App\Modules\Tasks\Actions\CreateCheckoutCleaningTask;
+use App\Modules\Reservations\Events\BookingImported;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Event;
 
 uses(RefreshDatabase::class);
 
 const ICAL_IMPORT_URL = '/api/reservations/ical/import';
 
 beforeEach(function () {
+    Event::fake([BookingImported::class]);
+
     $this->propertyId = icalProperty()->id;
 });
 
@@ -31,7 +33,8 @@ it('imports a valid file and lists the created bookings', function () {
         ->assertJsonPath('created.0.nights', 4);
 
     $this->assertDatabaseCount('bookings', 3);
-    $this->assertDatabaseCount('tasks', 3);
+
+    Event::assertDispatchedTimes(BookingImported::class, 3);
 });
 
 it('reports existing bookings when the same file is imported again', function () {
@@ -49,7 +52,6 @@ it('reports existing bookings when the same file is imported again', function ()
         ->assertJsonCount(3, 'existing');
 
     $this->assertDatabaseCount('bookings', 3);
-    $this->assertDatabaseCount('tasks', 3);
 });
 
 it('lists ambiguous events and warnings without saving them', function () {
@@ -67,7 +69,7 @@ it('lists ambiguous events and warnings without saving them', function () {
     $this->assertDatabaseCount('bookings', 1);
 });
 
-it('returns 422 and saves nothing for an invalid file', function () {
+it('returns 422, saves nothing and dispatches no events for an invalid file', function () {
     $this->actingAs(User::factory()->make(), 'sanctum')
         ->post(ICAL_IMPORT_URL, [
             'file' => icalUpload('airbnb-not-vcalendar.ics'),
@@ -77,23 +79,8 @@ it('returns 422 and saves nothing for an invalid file', function () {
         ->assertJsonPath('error.code', 'INVALID_ICAL');
 
     $this->assertDatabaseCount('bookings', 0);
-});
 
-it('returns 422 and saves nothing when task generation fails', function () {
-    $this->mock(CreateCheckoutCleaningTask::class)
-        ->shouldReceive('execute')
-        ->andThrow(ValidationException::withMessages(['check_out' => 'Data de check-out inválida.']));
-
-    $this->actingAs(User::factory()->make(), 'sanctum')
-        ->post(ICAL_IMPORT_URL, [
-            'file' => icalUpload('airbnb-valid.ics'),
-            'property_id' => $this->propertyId,
-        ], ['Accept' => 'application/json'])
-        ->assertStatus(422)
-        ->assertJsonPath('error.code', 'TASK_GENERATION_FAILED');
-
-    $this->assertDatabaseCount('bookings', 0);
-    $this->assertDatabaseCount('tasks', 0);
+    Event::assertNotDispatched(BookingImported::class);
 });
 
 it('returns 401 without authentication', function () {

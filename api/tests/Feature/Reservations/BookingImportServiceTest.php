@@ -2,19 +2,20 @@
 
 declare(strict_types=1);
 
-use App\Models\Task;
 use App\Modules\Reservations\DTO\ImportResult;
+use App\Modules\Reservations\Events\BookingImported;
 use App\Modules\Reservations\Ical\Channels\AirbnbAdapter;
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Reservations\Models\BookingSource;
 use App\Modules\Reservations\Services\BookingImportService;
-use App\Modules\Tasks\Actions\CreateCheckoutCleaningTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Event;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    Event::fake([BookingImported::class]);
+
     $this->propertyId = icalProperty()->id;
 });
 
@@ -41,21 +42,20 @@ it('creates one booking per reserved event', function () {
         ->and($booking->source_check_out_at->format('Y-m-d'))->toBe('2026-10-14');
 });
 
-it('creates one checkout cleaning task per imported booking', function () {
+it('dispatches one booking imported event per imported booking', function () {
     importIcalFixture('airbnb-valid.ics', $this->propertyId);
 
-    $this->assertDatabaseCount('tasks', 3);
+    Event::assertDispatchedTimes(BookingImported::class, 3);
 
     $booking = Booking::where('external_uid', 'fict-0001@cleancheck.test')->first();
-    $task = Task::where('booking_id', $booking->id)->first();
 
-    expect($task->type)->toBe('checkout_cleaning')
-        ->and($task->property_id)->toBe($this->propertyId)
-        ->and($task->scheduled_start_at->format('Y-m-d H:i'))->toBe('2026-10-14 11:30')
-        ->and($task->scheduled_end_at->format('Y-m-d H:i'))->toBe('2026-10-14 14:30');
+    Event::assertDispatched(
+        BookingImported::class,
+        fn (BookingImported $event) => $event->bookingId === $booking->id,
+    );
 });
 
-it('does not duplicate bookings or tasks when the same file is imported twice', function () {
+it('does not duplicate bookings and announces existing ones again on reimport', function () {
     importIcalFixture('airbnb-valid.ics', $this->propertyId);
     $second = importIcalFixture('airbnb-valid.ics', $this->propertyId);
 
@@ -63,8 +63,9 @@ it('does not duplicate bookings or tasks when the same file is imported twice', 
         ->and($second->existing)->toHaveCount(3);
 
     $this->assertDatabaseCount('bookings', 3);
-    $this->assertDatabaseCount('tasks', 3);
     $this->assertDatabaseCount('booking_sources', 1);
+
+    Event::assertDispatchedTimes(BookingImported::class, 6);
 });
 
 it('keeps unknown events out of the database', function () {
@@ -75,7 +76,8 @@ it('keeps unknown events out of the database', function () {
         ->and($result->warnings)->toHaveCount(6);
 
     $this->assertDatabaseCount('bookings', 1);
-    $this->assertDatabaseCount('tasks', 1);
+
+    Event::assertDispatchedTimes(BookingImported::class, 1);
 });
 
 it('records a successful sync run', function () {
@@ -90,18 +92,17 @@ it('records a successful sync run', function () {
     ]);
 });
 
-it('rolls back the import and keeps previous data when task generation fails', function () {
+it('rolls back a failed import, keeps previous data and dispatches no events for it', function () {
     importIcalFixture('airbnb-valid.ics', $this->propertyId);
 
-    $this->mock(CreateCheckoutCleaningTask::class)
-        ->shouldReceive('execute')
-        ->andThrow(ValidationException::withMessages(['check_out' => 'Data de check-out inválida.']));
+    Booking::creating(fn () => throw new RuntimeException('Falha simulada.'));
 
     expect(fn () => importIcalFixture('airbnb-invalid.ics', $this->propertyId))
-        ->toThrow(ValidationException::class);
+        ->toThrow(RuntimeException::class);
 
     $this->assertDatabaseCount('bookings', 3);
-    $this->assertDatabaseCount('tasks', 3);
     $this->assertDatabaseMissing('bookings', ['external_uid' => 'fict-inv-0005@cleancheck.test']);
     $this->assertDatabaseHas('sync_runs', ['status' => 'failed']);
+
+    Event::assertDispatchedTimes(BookingImported::class, 3);
 });
