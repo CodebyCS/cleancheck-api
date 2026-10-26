@@ -5,6 +5,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
+use App\Modules\Properties\Models\Property;
 
 /*
 |--------------------------------------------------------------------------
@@ -62,5 +63,15 @@ function userWithRole(string $role): User
     return User::factory()->create([
         'role_id' => Role::where('name', $role)->firstOrFail()->id,
         'is_active' => true,
+    ]);
+}
+
+function icalProperty(): Property
+{
+    return Property::create([
+        'name' => 'Casa Teste iCal',
+        'address' => 'Rua de Teste, 1',
+        'postal_code' => '1000-001',
+        'city' => 'Lisboa',
     ]);
 }
