@@ -2,14 +2,14 @@
 
 namespace App\Modules\Tasks\Listeners;
 
-use App\Modules\Reservations\Events\BookingCreated;
+use App\Modules\Reservations\Events\BookingImported;
 use App\Modules\Tasks\Actions\CreateCheckoutCleaningTask;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
-class CreateCheckoutCleaningOnBookingCreated implements ShouldQueue
+class CreateCheckoutCleaningOnBookingImported implements ShouldQueue
 {
     public bool $afterCommit = true;
 
@@ -17,7 +17,7 @@ class CreateCheckoutCleaningOnBookingCreated implements ShouldQueue
 
     public $backoff = [10, 60];
 
-    public function handle(BookingCreated $event, CreateCheckoutCleaningTask $action): void
+    public function handle(BookingImported $event, CreateCheckoutCleaningTask $action): void
     {
         try {
             $action->execute($event->bookingId);
@@ -29,7 +29,7 @@ class CreateCheckoutCleaningOnBookingCreated implements ShouldQueue
         }
     }
 
-    public function failed(BookingCreated $event, Throwable $e): void
+    public function failed(BookingImported $event, Throwable $e): void
     {
         Log::error('Falha definitiva ao criar a task de checkout.', [
             'booking_id' => $event->bookingId,
