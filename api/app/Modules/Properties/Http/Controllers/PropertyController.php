@@ -4,6 +4,7 @@ namespace App\Modules\Properties\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Properties\Http\Requests\StorePropertyRequest;
+use App\Modules\Properties\Http\Requests\UpdatePropertyRequest;
 use App\Modules\Properties\Http\Resources\PropertyResource;
 use App\Modules\Properties\Models\Property;
 use Illuminate\Http\JsonResponse;
@@ -26,5 +27,12 @@ class PropertyController extends Controller
         return (new PropertyResource($property))
             ->response()
             ->setStatusCode(201);
+    }
+
+    public function update(UpdatePropertyRequest $request, Property $property): PropertyResource
+    {
+        $property->update($request->validated());
+
+        return new PropertyResource($property->fresh());
     }
 }
