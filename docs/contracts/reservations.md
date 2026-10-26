@@ -144,20 +144,26 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
 
 | Evento | Gravado? | Lista |
 |---|---|---|
-| `reserved`, novo | Sim, com tarefa de limpeza de check-out | `created` |
-| `reserved`, já importado (mesma fonte + `externalUid`) | Não é alterado; a tarefa é criada se faltar | `existing` |
+| `reserved`, novo | Sim | `created` |
+| `reserved`, já importado (mesma fonte + `externalUid`) | Não é alterado | `existing` |
 | `unknown` | Não | `ambiguous` |
 | `blocked` | Não | `skipped` |
 | Inválido (ver avisos) | Não | `warnings` |
 
 - A fonte é identificada pelo imóvel + canal e é reutilizada entre importações.
-- Cada reserva tem no máximo uma tarefa de limpeza de check-out. Reimportar não duplica reservas nem tarefas.
-- A importação é tudo ou nada: se um passo falhar, nada desta importação fica gravado e os dados anteriores mantêm-se.
+- As reservas são gravadas numa só transação: se a gravação falhar, nada desta importação fica gravado e os dados anteriores mantêm-se.
 
-### Erros `422` da importação
+---
 
-Além dos erros de ficheiro:
+## Evento `BookingImported`
 
-| Código | Quando |
+`App\Modules\Reservations\Events\BookingImported`
+
+| Propriedade | Tipo |
 |---|---|
-| `TASK_GENERATION_FAILED` | Não foi possível gerar a tarefa de limpeza de uma reserva |
+| `bookingId` | `int` |
+
+- Disparado uma vez por reserva `created` e `existing`, depois de a importação terminar com sucesso.
+- Não é disparado se a importação falhar.
+- As reservas `existing` são anunciadas em cada importação: reimportar o ficheiro permite recuperar uma tarefa que não foi criada.
+- A criação de tarefas é feita por quem ouve o evento (módulo Tasks) e não altera a resposta da importação.
