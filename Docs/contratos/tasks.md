@@ -93,6 +93,12 @@ Lista de tarefas ordenada por `scheduled_start_at`. Cada elemento inclui:
 - `scheduled_start_at`
 - `status`
 
+Administradores e supervisores veem todas as tarefas não apagadas. Prestadores veem apenas as tarefas atualmente atribuídas ao seu registo; sem registo de prestador, a lista está vazia. Uma reatribuição muda imediatamente o acesso na próxima consulta.
+
+### `GET /api/tasks/{task}`
+
+Devolve `id`, `property`, `address`, `type`, `status`, `scheduled_start_at`, `scheduled_end_at`, `started_at` e `completed_at`. Um prestador só pode consultar tarefas que lhe estejam atualmente atribuídas. Uma tarefa inexistente, apagada ou atribuída a outro prestador devolve `404`.
+
 ### `POST /api/tasks`
 
 Cria uma inspeção (`checkin_inspection`) para uma reserva.
@@ -111,11 +117,28 @@ Edita os campos permitidos. Todos opcionais:
 
 | Campo | Regra |
 |---|---|
-| `service_provider_id` | Inteiro, nulo ou existente em `service_providers` |
+| `service_provider_id` | Inteiro de prestador existente com utilizador ativo; `null` é rejeitado |
 | `agreed_amount` | Numérico, nulo ou maior ou igual a 0 |
 | `notes` | Texto, nulo ou até 2000 caracteres |
 
 Qualquer outro campo enviado (por exemplo `status` ou datas) é ignorado. Resposta `200` com a task. Erro `422` se a task estiver concluída.
+
+Apenas administradores e supervisores podem enviar `service_provider_id`; outros perfis recebem `403`. A primeira atribuição só é permitida numa tarefa `pending`. A reatribuição é permitida em `pending`, `in_progress` e `cancelled`, mas não em `completed` (regra provisória). Um prestador inexistente ou inativo é rejeitado com `422`. O envio de `null` é rejeitado; enviar o mesmo prestador não altera a atribuição nem cria histórico.
+
+Exemplo de atribuição ou reatribuição:
+
+```http
+PATCH /api/tasks/42
+Accept: application/json
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "service_provider_id": 7 }
+```
+
+A resposta `200` devolve a task atualizada, incluindo `id` e `service_provider_id`. As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
+
+Cada alteração efetiva cria uma entrada em `task_assignment_history` com `task_id`, `previous_service_provider_id` (`null` na primeira atribuição), `new_service_provider_id`, `user_id` do autor e `created_at`. A atualização da task e a criação da entrada ocorrem na mesma transação. As atribuições existentes antes desta funcionalidade não têm histórico retroativo. A eliminação física de tarefas ou prestadores referenciados pelo histórico é restringida; a eliminação normal de tasks continua lógica.
 
 ### `DELETE /api/tasks/{task}`
 
@@ -127,7 +150,7 @@ Restaura uma task apagada. Resposta `200` com a task. Erro `404` se a task não 
 
 ### Permissões
 
-**A definir.** O objetivo é que `POST`, `PATCH`, `DELETE` e `restore` sejam exclusivos de administrator e supervisor, e que `GET` fique disponível a todos os utilizadores ativos. Até estar implementado, as rotas de escrita aceitam qualquer utilizador autenticado e ativo.
+As rotas de escrita (`POST`, `PATCH`, `DELETE` e `restore`) estão limitadas a administrator e supervisor. O prestador consulta apenas as suas tarefas na lista e no detalhe.
 
 ## 7. Dependências e limitações
 
@@ -222,7 +245,6 @@ Valores fictícios. A resposta real ainda necessita de validação através de u
 
 ## 10. Trabalho futuro
 
-- Aplicar as permissões de administrator e supervisor às rotas de escrita.
 - Recalcular a limpeza da reserva anterior quando um check-in muda.
 - Tratar pedidos simultâneos na criação do checkout.
 - Horário de 11:30 e 14:30 em hora local da propriedade.
