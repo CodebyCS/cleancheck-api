@@ -7,19 +7,15 @@ namespace App\Modules\Reservations\Services;
 use App\Modules\Reservations\DTO\ImportResult;
 use App\Modules\Reservations\DTO\ParseResult;
 use App\Modules\Reservations\Enums\ReservationStatus;
+use App\Modules\Reservations\Events\BookingImported;
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Reservations\Models\BookingSource;
 use App\Modules\Reservations\Models\SyncRun;
-use App\Modules\Tasks\Actions\CreateCheckoutCleaningTask;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 final class BookingImportService
 {
-    public function __construct(
-        private readonly CreateCheckoutCleaningTask $createCleaningTask,
-    ) {}
-
     public function import(int $propertyId, string $channel, ParseResult $result): ImportResult
     {
         $source = BookingSource::firstOrCreate(
@@ -50,6 +46,11 @@ final class BookingImportService
             'finished_at' => now(),
             'created_count' => count($importResult->created),
         ]);
+
+        // Existing bookings are announced too, so a reimport recovers any task that failed before.
+        foreach (array_merge($importResult->created, $importResult->existing) as $booking) {
+            BookingImported::dispatch($booking->id);
+        }
 
         return $importResult;
     }
@@ -91,11 +92,6 @@ final class BookingImportService
             } else {
                 $existing[] = $booking;
             }
-        }
-
-        // Second pass: every booking is saved first, so each task can find the next check-in.
-        foreach (array_merge($created, $existing) as $booking) {
-            $this->createCleaningTask->execute($booking->id);
         }
 
         return new ImportResult($created, $existing, $ambiguous, $skipped, $result->warnings);
