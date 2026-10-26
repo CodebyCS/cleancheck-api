@@ -11,16 +11,22 @@ use Throwable;
 
 class CreateCheckoutCleaningOnBookingImported implements ShouldQueue
 {
+
+    public function __construct(
+        private readonly CreateCheckoutCleaningTask $action,
+    ) {
+    }
+
     public bool $afterCommit = true;
 
     public int $tries = 3;
 
     public $backoff = [10, 60];
 
-    public function handle(BookingImported $event, CreateCheckoutCleaningTask $action): void
+    public function handle(BookingImported $event): void
     {
         try {
-            $action->execute($event->bookingId);
+            $this->action->execute($event->bookingId);
         } catch (ValidationException $e) {
             Log::warning('Task de checkout não criada.', [
                 'booking_id' => $event->bookingId,
