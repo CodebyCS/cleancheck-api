@@ -47,9 +47,13 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('/properties', [PropertyController::class, 'index']);
     Route::post('/properties', [PropertyController::class, 'store']);
     Route::put('/properties/{property}', [PropertyController::class, 'update'])->whereNumber('property');
+    Route::patch('/properties/{property}/activate', [PropertyController::class, 'activate'])->whereNumber('property');
+    Route::patch('/properties/{property}/deactivate', [PropertyController::class, 'deactivate'])->whereNumber('property');
 
     Route::get('/service-providers', [ServiceProviderController::class, 'index']);
     Route::post('/service-providers', [ServiceProviderController::class, 'store']);
     Route::put('/service-providers/{serviceProvider}', [ServiceProviderController::class, 'update'])->whereNumber('serviceProvider');
+    Route::patch('/service-providers/{serviceProvider}/activate', [ServiceProviderController::class, 'activate'])->whereNumber('serviceProvider');
+    Route::patch('/service-providers/{serviceProvider}/deactivate', [ServiceProviderController::class, 'deactivate'])->whereNumber('serviceProvider');
 });
 

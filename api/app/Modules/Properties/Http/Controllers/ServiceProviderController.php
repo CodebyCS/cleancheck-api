@@ -23,6 +23,10 @@ class ServiceProviderController extends Controller
         $providers = ServiceProvider::query()
             ->with('user')
             ->join('users', 'users.id', '=', 'service_providers.user_id')
+            ->when(
+                $request->has('active'),
+                fn ($query) => $query->where('users.is_active', $request->boolean('active')),
+            )
             ->orderBy('users.name')
             ->select('service_providers.*')
             ->get();
@@ -65,6 +69,34 @@ class ServiceProviderController extends Controller
             $serviceProvider->update(
                 $request->safe()->only(['phone', 'address', 'postal_code', 'city']),
             );
+        });
+
+        return new ServiceProviderResource($serviceProvider->fresh('user'));
+    }
+
+    public function activate(Request $request, ServiceProvider $serviceProvider): ServiceProviderResource
+    {
+        abort_unless($request->user()->hasRole('admin', 'supervisor'), 403);
+
+        $user = $serviceProvider->user;
+        $user->is_active = true;
+        $user->save();
+
+        return new ServiceProviderResource($serviceProvider->fresh('user'));
+    }
+
+    public function deactivate(Request $request, ServiceProvider $serviceProvider): ServiceProviderResource
+    {
+        abort_unless($request->user()->hasRole('admin', 'supervisor'), 403);
+
+        DB::transaction(function () use ($serviceProvider): void {
+            $user = $serviceProvider->user;
+            $user->is_active = false;
+            $user->save();
+
+            // Ends the mobile sessions; web sessions end on the next request
+            // through the active middleware.
+            $user->tokens()->delete();
         });
 
         return new ServiceProviderResource($serviceProvider->fresh('user'));

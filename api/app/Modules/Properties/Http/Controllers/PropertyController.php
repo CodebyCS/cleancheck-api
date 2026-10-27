@@ -17,7 +17,15 @@ class PropertyController extends Controller
     {
         abort_unless($request->user()->hasRole('admin', 'supervisor'), 403);
 
-        return PropertyResource::collection(Property::orderBy('name')->get());
+        $properties = Property::query()
+            ->when(
+                $request->has('active'),
+                fn ($query) => $query->where('is_active', $request->boolean('active')),
+            )
+            ->orderBy('name')
+            ->get();
+
+        return PropertyResource::collection($properties);
     }
 
     public function store(StorePropertyRequest $request): JsonResponse
@@ -32,6 +40,25 @@ class PropertyController extends Controller
     public function update(UpdatePropertyRequest $request, Property $property): PropertyResource
     {
         $property->update($request->validated());
+
+        return new PropertyResource($property->fresh());
+    }
+
+    public function activate(Request $request, Property $property): PropertyResource
+    {
+        return $this->setActive($request, $property, true);
+    }
+
+    public function deactivate(Request $request, Property $property): PropertyResource
+    {
+        return $this->setActive($request, $property, false);
+    }
+
+    private function setActive(Request $request, Property $property, bool $active): PropertyResource
+    {
+        abort_unless($request->user()->hasRole('admin', 'supervisor'), 403);
+
+        $property->update(['is_active' => $active]);
 
         return new PropertyResource($property->fresh());
     }
