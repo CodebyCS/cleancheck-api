@@ -79,7 +79,7 @@ function icalProperty(): Property
 
 function createServiceProvider(string $email, array $attributes = []): ServiceProvider
 {
-    $user = userWithRole('prestador');
+    $user = userWithRole('service_provider');
     $user->update(['email' => $email]);
 
     return ServiceProvider::create(array_merge([

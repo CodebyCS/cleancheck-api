@@ -118,7 +118,7 @@ it('filters properties by active state', function () {
 
 it('forbids a prestador from updating or deactivating properties', function () {
     $property = existingProperty();
-    $this->actingAs(userWithRole('prestador'), 'sanctum');
+    $this->actingAs(userWithRole('service_provider'), 'sanctum');
 
     $this->putJson("/api/properties/{$property->id}", propertyPayload(['name' => 'X']))
         ->assertForbidden();

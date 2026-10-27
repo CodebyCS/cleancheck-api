@@ -124,7 +124,7 @@ it('filters service providers by active state', function () {
 
 it('forbids a prestador from updating or deactivating providers', function () {
     $provider = createServiceProvider('ana@example.test');
-    $this->actingAs(userWithRole('prestador'), 'sanctum');
+    $this->actingAs(userWithRole('service_provider'), 'sanctum');
 
     $this->putJson("/api/service-providers/{$provider->id}", providerPayload(['name' => 'X']))
         ->assertForbidden();
