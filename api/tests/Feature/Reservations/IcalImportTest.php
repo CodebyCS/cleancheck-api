@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\User;
 use App\Modules\Reservations\Events\BookingImported;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -18,7 +17,7 @@ beforeEach(function () {
 });
 
 it('imports a valid file and lists the created bookings', function () {
-    $this->actingAs(User::factory()->make(), 'sanctum')
+    $this->actingAs(userWithRole('supervisor'), 'sanctum')
         ->post(ICAL_IMPORT_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
             'property_id' => $this->propertyId,
@@ -38,7 +37,7 @@ it('imports a valid file and lists the created bookings', function () {
 });
 
 it('reports existing bookings when the same file is imported again', function () {
-    $user = User::factory()->make();
+    $user = userWithRole('supervisor');
     $payload = fn () => ['file' => icalUpload('airbnb-valid.ics'), 'property_id' => $this->propertyId];
 
     $this->actingAs($user, 'sanctum')
@@ -55,7 +54,7 @@ it('reports existing bookings when the same file is imported again', function ()
 });
 
 it('lists ambiguous events and warnings without saving them', function () {
-    $this->actingAs(User::factory()->make(), 'sanctum')
+    $this->actingAs(userWithRole('supervisor'), 'sanctum')
         ->post(ICAL_IMPORT_URL, [
             'file' => icalUpload('airbnb-invalid.ics'),
             'property_id' => $this->propertyId,
@@ -70,7 +69,7 @@ it('lists ambiguous events and warnings without saving them', function () {
 });
 
 it('returns 422, saves nothing and dispatches no events for an invalid file', function () {
-    $this->actingAs(User::factory()->make(), 'sanctum')
+    $this->actingAs(userWithRole('supervisor'), 'sanctum')
         ->post(ICAL_IMPORT_URL, [
             'file' => icalUpload('airbnb-not-vcalendar.ics'),
             'property_id' => $this->propertyId,
@@ -89,4 +88,17 @@ it('returns 401 without authentication', function () {
         'property_id' => $this->propertyId,
     ], ['Accept' => 'application/json'])
         ->assertUnauthorized();
+});
+
+it('returns 403, saves nothing and dispatches no events for a service provider', function () {
+    $this->actingAs(userWithRole('prestador'), 'sanctum')
+        ->post(ICAL_IMPORT_URL, [
+            'file' => icalUpload('airbnb-valid.ics'),
+            'property_id' => $this->propertyId,
+        ], ['Accept' => 'application/json'])
+        ->assertForbidden();
+
+    $this->assertDatabaseCount('bookings', 0);
+
+    Event::assertNotDispatched(BookingImported::class);
 });

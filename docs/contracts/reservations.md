@@ -2,7 +2,7 @@
 
 ## Pedido
 
-Igual nas duas operações. Autenticado (`auth:sanctum`) · `multipart/form-data`
+Igual nas duas operações. Conta ativa com perfil `admin` ou `supervisor` · `multipart/form-data`
 
 | Campo | Tipo | Obrigatório |
 |---|---|---|
@@ -50,7 +50,7 @@ O `.ics` não identifica o imóvel: a associação vem sempre do `property_id`.
 | `EMPTY_FILE` | Ficheiro vazio |
 | `INVALID_ICAL` | Não é um `VCALENDAR` válido |
 
-Sem autenticação → `401`.
+Sem autenticação ou conta inativa → `401`. Perfil sem permissão (`prestador`) → `403`.
 
 ## Avisos — evento ignorado ou degradado
 
