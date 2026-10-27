@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Properties\Http\Controllers\ProfileController;
 use App\Modules\Properties\Http\Controllers\PropertyController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderPhotoController;
@@ -38,6 +39,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('/user', function (Request $request) {
         return new UserResource($request->user());
     });
+
+    Route::get('/profile', [ProfileController::class, 'show']);
 
     Route::post('/reservations/ical/read', IcalReadController::class);
     Route::post('/reservations/ical/import', IcalImportController::class);
