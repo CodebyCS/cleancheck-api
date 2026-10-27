@@ -3,70 +3,40 @@
 namespace App\Modules\Tasks\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+
 use App\Modules\Tasks\Http\Requests\StoreTaskRequest;
 use App\Modules\Tasks\Http\Requests\UpdateTaskRequest;
-use App\Models\Task;
+use App\Modules\Tasks\Http\Requests\ListTasksRequest;
+
+use App\Modules\Tasks\Http\Resources\TaskStaffResource;
+
 use App\Modules\Tasks\Actions\CreateManualTask;
 use App\Modules\Tasks\Actions\DeleteTask;
 use App\Modules\Tasks\Actions\RestoreTask;
 use App\Modules\Tasks\Actions\UpdateTask;
+use App\Modules\Tasks\Actions\ListTasks;
+
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\Builder;
+
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class TaskController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    private function accessibleTasks(Request $request): Builder
+
+    public function index(ListTasksRequest $request, ListTasks $action): AnonymousResourceCollection
     {
-        $user = $request->user();
-        $query = Task::query();
-
-        if ($user->hasRole('service_provider')) {
-            return $query->whereHas('serviceProvider', fn (Builder $providers) => $providers->where('user_id', $user->id));
-        }
-
-        abort_unless($user->hasRole('admin', 'supervisor'), 403);
-
-        return $query;
+        return TaskStaffResource::collection($action->forStaff($request->validated()));
     }
 
-    public function index(Request $request): JsonResponse
+    public function show(int $task, ListTasks $action): TaskStaffResource
     {
-        $tasks = $this->accessibleTasks($request)
-            ->with('property')
-            ->orderBy('scheduled_start_at')
-            ->get();
-
-        return response()->json(
-            $tasks->map(fn (Task $task) => [
-                'id' => $task->id,
-                'property' => $task->property ? $task->property->name : null,
-                'type' => $task->type,
-                'scheduled_start_at' => $task->scheduled_start_at,
-                'status' => $task->status,
-            ])
-        );
-    }
-
-    public function show(Request $request, int $task): JsonResponse
-    {
-        $task = $this->accessibleTasks($request)->with('property')->findOrFail($task);
-
-        return response()->json([
-            'id' => $task->id,
-            'property' => $task->property?->name,
-            'address' => $task->property?->address,
-            'type' => $task->type,
-            'status' => $task->status,
-            'scheduled_start_at' => $task->scheduled_start_at,
-            'scheduled_end_at' => $task->scheduled_end_at,
-            'started_at' => $task->started_at,
-            'completed_at' => $task->completed_at,
-        ]);
+        return new TaskStaffResource($action->findForStaff($task));
     }
 
     /**
