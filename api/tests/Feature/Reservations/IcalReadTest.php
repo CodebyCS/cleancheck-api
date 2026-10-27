@@ -118,7 +118,7 @@ it('returns 401 for an inactive account', function () {
 });
 
 it('returns 403 for a service provider', function () {
-    $this->actingAs(userWithRole('prestador'), 'sanctum')
+    $this->actingAs(userWithRole('service_provider'), 'sanctum')
         ->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
             'property_id' => 1,
