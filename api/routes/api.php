@@ -33,6 +33,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     });
 
     Route::post('/reservations/ical/read', IcalReadController::class);
+    Route::post('/reservations/ical/import', IcalImportController::class);
 
     // Route Tasks
     Route::get('/tasks', [TaskController::class, 'index']);
@@ -50,7 +51,3 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/service-providers', [ServiceProviderController::class, 'store']);
 });
 
-Route::middleware('auth:sanctum')->group(function (): void {
-    Route::post('/reservations/ical/read', IcalReadController::class);
-    Route::post('/reservations/ical/import', IcalImportController::class);
-});
