@@ -16,7 +16,7 @@ class UserRoleTest extends TestCase
 
     public function test_required_roles_exist(): void
     {
-        foreach (['admin', 'supervisor', 'prestador'] as $name) {
+        foreach (['admin', 'supervisor', 'service_provider'] as $name) {
             $this->assertDatabaseHas('roles', [
                 'name' => $name,
             ]);
@@ -86,8 +86,8 @@ class UserRoleTest extends TestCase
         $expected = [
             'admin@example.test' => 'admin',
             'supervisor@example.test' => 'supervisor',
-            'prestador1@example.test' => 'prestador',
-            'prestador2@example.test' => 'prestador',
+            'prestador1@example.test' => 'service_provider',
+            'prestador2@example.test' => 'service_provider',
         ];
 
         foreach ($expected as $email => $roleName) {

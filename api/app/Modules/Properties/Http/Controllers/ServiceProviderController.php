@@ -33,7 +33,7 @@ class ServiceProviderController extends Controller
     {
         $provider = DB::transaction(function () use ($request): ServiceProvider {
             $user = new User($request->safe()->only(['name', 'email', 'password']));
-            $user->role()->associate(Role::where('name', 'prestador')->firstOrFail());
+            $user->role()->associate(Role::where('name', 'service_provider')->firstOrFail());
             $user->is_active = true;
             $user->save();
 

@@ -91,7 +91,7 @@ it('returns 401 without authentication', function () {
 });
 
 it('returns 403, saves nothing and dispatches no events for a service provider', function () {
-    $this->actingAs(userWithRole('prestador'), 'sanctum')
+    $this->actingAs(userWithRole('service_provider'), 'sanctum')
         ->post(ICAL_IMPORT_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
             'property_id' => $this->propertyId,

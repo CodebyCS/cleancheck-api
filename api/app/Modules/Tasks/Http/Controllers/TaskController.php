@@ -25,7 +25,7 @@ class TaskController extends Controller
         $user = $request->user();
         $query = Task::query();
 
-        if ($user->hasRole('prestador')) {
+        if ($user->hasRole('service_provider')) {
             return $query->whereHas('serviceProvider', fn (Builder $providers) => $providers->where('user_id', $user->id));
         }
 
@@ -39,7 +39,7 @@ class TaskController extends Controller
         $tasks = $this->accessibleTasks($request)
             ->with('property')
             ->orderBy('scheduled_start_at')
-            ->get(); 
+            ->get();
 
         return response()->json(
             $tasks->map(fn (Task $task) => [

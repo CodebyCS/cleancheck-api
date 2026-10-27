@@ -32,7 +32,7 @@ function assignmentTask(string $status = 'pending', ?int $providerId = null): Ta
 
 function assignmentProvider(bool $active = true): ServiceProvider
 {
-    $user = userWithRole('prestador');
+    $user = userWithRole('service_provider');
     $user->is_active = $active;
     $user->save();
 
@@ -54,7 +54,7 @@ it('rejects assignment by a provider or an unauthenticated user', function () {
     $provider = assignmentProvider();
     $task = assignmentTask();
     $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])->assertUnauthorized();
-    $this->actingAs(userWithRole('prestador'), 'sanctum')
+    $this->actingAs(userWithRole('service_provider'), 'sanctum')
         ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])->assertForbidden();
     expect($task->fresh()->service_provider_id)->toBeNull();
 });
@@ -190,7 +190,7 @@ it('denies task access without authentication or without a provider record', fun
     $task = assignmentTask();
     $this->getJson('/api/tasks')->assertUnauthorized();
     $this->getJson("/api/tasks/{$task->id}")->assertUnauthorized();
-    $this->actingAs(userWithRole('prestador'), 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+    $this->actingAs(userWithRole('service_provider'), 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
     $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
 });
 
