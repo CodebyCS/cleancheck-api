@@ -23,8 +23,8 @@ class DemoUserSeeder extends Seeder
         $accounts = [
             ['Administrador', 'admin@example.test', 'admin'],
             ['Supervisor', 'supervisor@example.test', 'supervisor'],
-            ['Prestador Um', 'prestador1@example.test', 'prestador'],
-            ['Prestador Dois', 'prestador2@example.test', 'prestador'],
+            ['Prestador Um', 'prestador1@example.test', 'service_provider'],
+            ['Prestador Dois', 'prestador2@example.test', 'service_provider'],
         ];
 
         foreach ($accounts as [$name, $email, $role]) {

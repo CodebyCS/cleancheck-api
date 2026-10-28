@@ -4,6 +4,7 @@ namespace Tests\Unit\Tasks;
 
 use App\Modules\Tasks\Services\CleaningSchedule;
 use PHPUnit\Framework\TestCase;
+use Illuminate\Support\Carbon;
 
 class CleaningScheduleTest extends TestCase
 {
@@ -50,22 +51,24 @@ class CleaningScheduleTest extends TestCase
         );
     }
 
-    public function test_inspection_uses_current_time_as_start_and_checkin_day_at_1430_as_end(): void
+    protected function tearDown(): void
     {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_inspection_opens_now_and_closes_at_1430_of_checkin_day(): void
+    {
+        Carbon::setTestNow('2026-10-10 09:00:00');
+
         $result = $this->schedule->calculate(
             'checkin_inspection',
-            new \DateTimeImmutable('2026-10-20 15:00:00')
+            new \DateTimeImmutable('2026-10-15 15:00:00')
         );
 
-        $this->assertInstanceOf(
-            \DateTimeInterface::class,
-            $result['scheduled_start_at']
-        );
-
-        $this->assertSame(
-            '2026-10-20 14:30:00',
-            $result['scheduled_end_at']->format('Y-m-d H:i:s')
-        );
+        $this->assertSame('2026-10-10 09:00:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-15 14:30:00', $result['scheduled_end_at']->format('Y-m-d H:i:s'));
     }
 
     public function test_unknown_task_type_throws_exception(): void

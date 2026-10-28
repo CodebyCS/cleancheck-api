@@ -57,7 +57,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('role', 20)->default('prestador');
+            $table->string('role', 20)->default('service_provider');
         });
 
         $roles = DB::table('roles')->pluck('name', 'id');

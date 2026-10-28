@@ -32,7 +32,7 @@ return new class extends Migration
                 'updated_at' => $now,
             ],
             [
-                'name' => 'prestador',
+                'name' => 'service_provider',
                 'created_at' => $now,
                 'updated_at' => $now,
             ],

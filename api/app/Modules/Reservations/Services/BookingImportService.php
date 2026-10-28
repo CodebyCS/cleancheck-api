@@ -7,6 +7,7 @@ namespace App\Modules\Reservations\Services;
 use App\Modules\Reservations\DTO\ImportResult;
 use App\Modules\Reservations\DTO\ParseResult;
 use App\Modules\Reservations\Enums\ReservationStatus;
+use App\Modules\Reservations\Events\BookingImported;
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Reservations\Models\BookingSource;
 use App\Modules\Reservations\Models\SyncRun;
@@ -45,6 +46,11 @@ final class BookingImportService
             'finished_at' => now(),
             'created_count' => count($importResult->created),
         ]);
+
+        // Existing bookings are announced too, so a reimport recovers any task that failed before.
+        foreach (array_merge($importResult->created, $importResult->existing) as $booking) {
+            BookingImported::dispatch($booking->id);
+        }
 
         return $importResult;
     }

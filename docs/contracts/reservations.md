@@ -2,7 +2,7 @@
 
 ## Pedido
 
-Igual nas duas operações. Autenticado (`auth:sanctum`) · `multipart/form-data`
+Igual nas duas operações. Conta ativa com perfil `admin` ou `supervisor` · `multipart/form-data`
 
 | Campo | Tipo | Obrigatório |
 |---|---|---|
@@ -26,6 +26,7 @@ O `.ics` não identifica o imóvel: a associação vem sempre do `property_id`.
 - `nights` = `checkOut − checkIn`.
 - Outras propriedades (`DTSTAMP`, `X-*`) são ignoradas.
 - A `DESCRIPTION` original e o telefone não são devolvidos.
+- Eventos recorrentes (`RRULE`) não são expandidos: só é lida a primeira ocorrência.
 
 ## Classificação
 
@@ -49,7 +50,7 @@ O `.ics` não identifica o imóvel: a associação vem sempre do `property_id`.
 | `EMPTY_FILE` | Ficheiro vazio |
 | `INVALID_ICAL` | Não é um `VCALENDAR` válido |
 
-Sem autenticação → `401`.
+Sem autenticação ou conta inativa → `401`. Perfil sem permissão (`prestador`) → `403`.
 
 ## Avisos — evento ignorado ou degradado
 
@@ -150,4 +151,19 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
 | Inválido (ver avisos) | Não | `warnings` |
 
 - A fonte é identificada pelo imóvel + canal e é reutilizada entre importações.
-- Ficheiro rejeitado (`422`): nada é gravado.
+- As reservas são gravadas numa só transação: se a gravação falhar, nada desta importação fica gravado e os dados anteriores mantêm-se.
+
+---
+
+## Evento `BookingImported`
+
+`App\Modules\Reservations\Events\BookingImported`
+
+| Propriedade | Tipo |
+|---|---|
+| `bookingId` | `int` |
+
+- Disparado uma vez por reserva `created` e `existing`, depois de a importação terminar com sucesso.
+- Não é disparado se a importação falhar.
+- As reservas `existing` são anunciadas em cada importação: reimportar o ficheiro permite recuperar uma tarefa que não foi criada.
+- A criação de tarefas é feita por quem ouve o evento (módulo Tasks) e não altera a resposta da importação.

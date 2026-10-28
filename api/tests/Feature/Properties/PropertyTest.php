@@ -62,8 +62,8 @@ it('rejects an invalid postal code', function () {
         ]);
 });
 
-it('forbids a prestador from creating or listing properties', function () {
-    $this->actingAs(userWithRole('prestador'), 'sanctum')
+it('forbids a service_provider from creating or listing properties', function () {
+    $this->actingAs(userWithRole('service_provider'), 'sanctum')
         ->postJson(PROPERTIES_URL, validProperty())
         ->assertForbidden();
 
