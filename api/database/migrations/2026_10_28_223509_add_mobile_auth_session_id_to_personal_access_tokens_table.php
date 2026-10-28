@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('personal_access_tokens', function (Blueprint $table) {
-            $table->foreignId('mobile_auth_sessions_id')
+            $table->foreignId('mobile_auth_session_id')
                 ->nullable()
                 ->constrained('mobile_auth_sessions')
                 ->cascadeOnDelete();
