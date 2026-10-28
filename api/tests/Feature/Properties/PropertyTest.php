@@ -20,8 +20,8 @@ function validProperty(array $overrides = []): array
 }
 
 it('creates a property and returns it when listing', function () {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->postJson(PROPERTIES_URL, validProperty())
+    authenticateApiUser(userWithRole('admin'));
+    $this->postJson(PROPERTIES_URL, validProperty())
         ->assertCreated()
         ->assertJsonPath('data.name', 'Casa da Ribeira')
         ->assertJsonPath('data.postal_code', '4050-123')
