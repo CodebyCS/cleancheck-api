@@ -13,12 +13,12 @@ class TaskStaffResource extends JsonResource
             'id' => $this->id,
             'booking_id' => $this->booking_id,
             'property' => $this->property?->name,
-            'property_address' => $this->property?->address,          // ADAPTAR: nome da coluna
+            'property_address' => $this->property?->address,
             'type' => $this->type,
             'scheduled_start_at' => $this->scheduled_start_at,
             'scheduled_end_at' => $this->scheduled_end_at,
             'service_provider_id' => $this->service_provider_id,
-            'service_provider' => $this->serviceProvider?->user?->name, // ADAPTAR: relação do Pedro
+            'service_provider' => $this->serviceProvider?->user?->name,
             'agreed_amount' => $this->agreed_amount,
             'status' => $this->status,
             'deleted_at' => $this->deleted_at,

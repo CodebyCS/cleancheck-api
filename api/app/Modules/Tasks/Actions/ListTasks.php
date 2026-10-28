@@ -11,10 +11,8 @@ class ListTasks
 {
     private const DEFAULT_PER_PAGE = 15;
 
-    /** Adm/supervisor: todas as tasks (e, com deleted=only, só as apagadas). */
     public function forStaff(array $filters): LengthAwarePaginator
     {
-        // ADAPTAR: 'serviceProvider.user' depende da relação do Pedro (nome do prestador)
         $query = Task::query()->with(['property', 'serviceProvider.user']);
 
         if (($filters['deleted'] ?? null) === 'only') {
@@ -24,7 +22,7 @@ class ListTasks
         return $this->filtered($query, $filters);
     }
 
-    /** Prestador: só as tasks que lhe estão atribuídas. */
+    /** Service provider: only the tasks assigned to them. */
     public function forProvider(int $serviceProviderId, array $filters): LengthAwarePaginator
     {
         $query = Task::query()
@@ -34,7 +32,7 @@ class ListTasks
         return $this->filtered($query, $filters);
     }
 
-    /** Detalhe para o adm: inclui apagadas, para poder ver antes de restaurar. */
+    /** Note to the admin: Includes deleted items, so you can view them before restoring. */
     public function findForStaff(int $taskId): Task
     {
         return Task::withTrashed()
@@ -42,7 +40,7 @@ class ListTasks
             ->findOrFail($taskId);
     }
 
-    /** Detalhe para o prestador: só se for dele. Se não for, responde 404. */
+    /** Note to the provider: only if it's theirs. If not, return a 404 response. */
     public function findForProvider(int $taskId, int $serviceProviderId): Task
     {
         return Task::query()

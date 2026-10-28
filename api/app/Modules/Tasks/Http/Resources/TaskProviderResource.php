@@ -12,7 +12,7 @@ class TaskProviderResource extends JsonResource
         return [
             'id' => $this->id,
             'property' => $this->property?->name,
-            'property_address' => $this->property?->address,   // ADAPTAR: nome da coluna
+            'property_address' => $this->property?->address,
             'type' => $this->type,
             'scheduled_start_at' => $this->scheduled_start_at,
             'scheduled_end_at' => $this->scheduled_end_at,
