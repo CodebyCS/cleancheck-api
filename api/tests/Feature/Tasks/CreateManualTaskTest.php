@@ -58,6 +58,7 @@ class CreateManualTaskTest extends TestCase
             checkIn: Carbon::now()->addDays(2)->setTime(15, 0),
             checkOut: Carbon::now()->addDays(4)->setTime(10, 0),
             nextCheckIn: null,
+            propertyActive: true,
         );
     }
 

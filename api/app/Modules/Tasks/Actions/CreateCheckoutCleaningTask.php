@@ -35,6 +35,8 @@ class CreateCheckoutCleaningTask
             return $existing->trashed() ? null : $existing;
         }
 
+        $this->validator->validatePropertyActive($data);
+
         $schedule = $this->cleaningSchedule->calculate($type, $data->checkOut, $data->nextCheckIn);
 
         try {

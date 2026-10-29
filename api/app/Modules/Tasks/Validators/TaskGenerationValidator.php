@@ -48,4 +48,14 @@ class TaskGenerationValidator
             throw ValidationException::withMessages($errors);
         }
     }
+
+    /** New tasks cannot be created (or restored) for an inactive property. */
+    public function validatePropertyActive(BookingSnapshot $data): void
+    {
+        if ($data->propertyId !== null && ! $data->propertyActive) {
+            throw ValidationException::withMessages([
+                'property_id' => 'A propriedade está inativa.',
+            ]);
+        }
+    }
 }

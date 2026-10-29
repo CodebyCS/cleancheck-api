@@ -38,6 +38,8 @@ class CreateManualTask
             ]);
         }
 
+        $this->validator->validatePropertyActive($data);
+
         $schedule = $this->cleaningSchedule->calculate($type, $data->checkIn);
 
         return Task::create([
