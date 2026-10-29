@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
+use App\Actions\ManageMobileSession;
+use App\Http\Requests\Auth\RefreshTokenRequest;
 
 class AuthController extends Controller
 {
@@ -54,8 +56,10 @@ class AuthController extends Controller
         return response()->noContent();
     }
 
-    public function loginMobile(LoginRequest $request): JsonResponse
-    {
+    public function loginMobile(
+        LoginRequest $request,
+        ManageMobileSession $sessions,
+    ): JsonResponse {
         $user = User::where('email', $request->input('email'))->first();
 
         if (
@@ -64,33 +68,30 @@ class AuthController extends Controller
             || ! $user->is_active
         ) {
             throw ValidationException::withMessages([
-                'email' => ['Email ou password invalidos'],
+                'email' => ['Email ou password invalidos.'],
             ]);
         }
 
-        $expiresAt = $request->boolean('remember')
-            ? now()->addDays(30)
-            : now()->addHours(2);
-
-        $token = $user->createToken(
+        $credentials = $sessions->start(
+            $user,
             $request->input('device_name', 'mobile'),
-            ['*'],
-            $expiresAt,
+            $request->boolean('remember'),
         );
 
         return response()->json([
-            'token' => $token->plainTextToken,
-            'expires_at' => $expiresAt->toIso8601String(),
+            ...$credentials,
             'user' => (new UserResource($user))->resolve(),
         ]);
     }
 
-    public function logoutMobile(Request $request): Response
-    {
-        $token = $request->user()->currentAccessToken();
-        abort_unless($token instanceof PersonalAccessToken, 403);
-        $token->delete();
-
-        return response()->noContent();
+    public function refreshMobile(
+        RefreshTokenRequest $request,
+        ManageMobileSession $sessions,
+    ): JsonResponse {
+        return response()->json(
+            $sessions->refresh(
+                $request->validated('refresh_token'),
+            ),
+        );
     }
 }

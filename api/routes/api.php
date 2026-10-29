@@ -23,6 +23,8 @@ Route::get('/health', function (): JsonResponse {
 // The login must be accessible without authentication.
 Route::post('/mobile/login', [AuthController::class, 'loginMobile'])
     ->middleware('throttle:5,1');
+Route::post('/mobile/refresh', [AuthController::class, 'refreshMobile'])
+    ->middleware('throttle:10,1');
 
 // Photo links are generated only for authorized viewers and expire.
 Route::get('/service-providers/{serviceProvider}/photo', [ServiceProviderPhotoController::class, 'show'])
