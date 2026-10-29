@@ -173,6 +173,41 @@ class ManageMobileSession
         return $result;
     }
 
+    public function logout(
+        User $user,
+        \Laravel\Sanctum\PersonalAccessToken $token,
+    ): void {
+        abort_unless(
+            $token->tokenable_type === $user->getMorphClass()
+            && (string) $token->tokenable_id === (string) $user->id,
+            403,
+        );
+
+        DB::transaction(function () use ($user, $token): void {
+            // Compatibilidade com tokens emitidos antes das sessões mobile.
+            if ($token->mobile_auth_session_id === null) {
+                $token->delete();
+
+                return;
+            }
+
+            $session = MobileAuthSession::whereKey(
+                $token->mobile_auth_session_id,
+            )
+                ->where('user_id', $user->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($session === null) {
+                $token->delete();
+
+                return;
+            }
+
+            $this->revokeSession($session);
+        });
+    }
+
     private function revokeSession(MobileAuthSession $session): void
     {
         $session->forceFill([

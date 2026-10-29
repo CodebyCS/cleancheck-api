@@ -116,3 +116,59 @@ it('rejects reused refresh credentials and invalidates the replacement access to
         ->getJson('/api/user')
         ->assertUnauthorized();
 });
+
+it('logs out one device and revokes its access and refresh credentials', function () {
+    $user = User::factory()->create([
+        'password' => 'Secret-123!',
+        'is_active' => true,
+    ]);
+
+    $credentials = [
+        'email' => $user->email,
+        'password' => 'Secret-123!',
+        'remember' => true,
+    ];
+
+    $phone = $this->postJson('/api/mobile/login', [
+        ...$credentials,
+        'device_name' => 'phone',
+    ])->assertOk()->json();
+
+    $tablet = $this->postJson('/api/mobile/login', [
+        ...$credentials,
+        'device_name' => 'tablet',
+    ])->assertOk()->json();
+
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    $this->withToken($phone['token'])
+        ->postJson('/api/mobile/logout')
+        ->assertNoContent();
+
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    $this->withToken($phone['token'])
+        ->getJson('/api/user')
+        ->assertUnauthorized();
+
+    $this->withoutHeader('Authorization');
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    $this->postJson('/api/mobile/refresh', [
+        'refresh_token' => $phone['refresh_token'],
+    ])->assertUnauthorized();
+
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    $this->withToken($tablet['token'])
+        ->getJson('/api/user')
+        ->assertOk()
+        ->assertJsonPath('data.id', $user->id);
+
+    $this->withoutHeader('Authorization');
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    $this->postJson('/api/mobile/refresh', [
+        'refresh_token' => $tablet['refresh_token'],
+    ])->assertOk();
+});

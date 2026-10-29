@@ -94,4 +94,18 @@ class AuthController extends Controller
             ),
         );
     }
+
+    public function logoutMobile(
+        Request $request,
+        ManageMobileSession $sessions,
+    ): Response {
+        $user = $request->user();
+        $token = $user->currentAccessToken();
+
+        abort_unless($token instanceof PersonalAccessToken, 403);
+
+        $sessions->logout($user, $token);
+
+        return response()->noContent();
+}
 }
