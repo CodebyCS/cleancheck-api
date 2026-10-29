@@ -107,5 +107,16 @@ class AuthController extends Controller
         $sessions->logout($user, $token);
 
         return response()->noContent();
-}
+    }
+
+    public function logoutMobileWithRefresh(
+        RefreshTokenRequest $request,
+        ManageMobileSession $sessions,
+    ): Response {
+        $sessions->logoutWithRefresh(
+            $request->validated('refresh_token'),
+        );
+
+        return response()->noContent();
+    }
 }

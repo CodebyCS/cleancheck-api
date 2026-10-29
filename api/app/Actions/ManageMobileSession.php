@@ -208,6 +208,43 @@ class ManageMobileSession
         });
     }
 
+    public function logoutWithRefresh(string $plainRefreshToken): void
+    {
+        $hash = hash('sha256', $plainRefreshToken);
+
+        $sessionId = MobileRefreshToken::where('token_hash', $hash)
+            ->value('mobile_auth_session_id');
+
+        abort_if($sessionId === null, 401, 'Credencial inválida.');
+
+        $revoked = DB::transaction(function () use ($sessionId, $hash): bool {
+            $session = MobileAuthSession::whereKey($sessionId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($session === null) {
+                return false;
+            }
+
+            $refresh = $session->refreshTokens()
+                ->where('token_hash', $hash)
+                ->lockForUpdate()
+                ->first();
+
+            if ($refresh === null) {
+                return false;
+            }
+
+            // Allows you to log out even if the credential has expired
+            // or has already been used, without issuing new credentials.
+            $this->revokeSession($session);
+
+            return true;
+        });
+
+        abort_unless($revoked, 401, 'Credencial inválida.');
+    }
+
     private function revokeSession(MobileAuthSession $session): void
     {
         $session->forceFill([

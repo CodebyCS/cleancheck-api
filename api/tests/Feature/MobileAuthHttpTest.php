@@ -172,3 +172,47 @@ it('logs out one device and revokes its access and refresh credentials', functio
         'refresh_token' => $tablet['refresh_token'],
     ])->assertOk();
 });
+
+it('logs out with refresh after access expires', function () {
+    $this->freezeTime();
+
+    $user = User::factory()->create([
+        'password' => 'Secret-123!',
+        'is_active' => true,
+    ]);
+
+    $login = $this->postJson('/api/mobile/login', [
+        'email' => $user->email,
+        'password' => 'Secret-123!',
+        'remember' => true,
+    ])->assertOk()->json();
+
+    $this->travel(3)->hours();
+
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    $this->withToken($login['token'])
+        ->getJson('/api/user')
+        ->assertUnauthorized();
+
+    $this->withoutHeader('Authorization');
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    $this->postJson('/api/mobile/logout-with-refresh', [
+        'refresh_token' => $login['refresh_token'],
+    ])->assertNoContent();
+
+    expect(
+        PersonalAccessToken::findToken($login['token']),
+    )->toBeNull();
+
+    $this->postJson('/api/mobile/refresh', [
+        'refresh_token' => $login['refresh_token'],
+    ])->assertUnauthorized();
+});
+
+it('rejects logout with an unknown refresh credential', function () {
+    $this->postJson('/api/mobile/logout-with-refresh', [
+        'refresh_token' => bin2hex(random_bytes(32)),
+    ])->assertUnauthorized();
+});
