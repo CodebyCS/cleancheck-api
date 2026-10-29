@@ -134,7 +134,7 @@ class ManageMobileSession
                 'used_at' => now(),
             ])->save();
 
-            // Substituir o acesso anterior faz parte da rotação.
+            // Replace the previous access token during rotation.
             $session->accessTokens()->delete();
 
             $accessExpiresAt = now()->addHours(2);
@@ -184,7 +184,7 @@ class ManageMobileSession
         );
 
         DB::transaction(function () use ($user, $token): void {
-            // Compatibilidade com tokens emitidos antes das sessões mobile.
+            // Support tokens issued before mobile authentication sessions.
             if ($token->mobile_auth_session_id === null) {
                 $token->delete();
 
@@ -243,6 +243,23 @@ class ManageMobileSession
         });
 
         abort_unless($revoked, 401, 'Credencial inválida.');
+    }
+
+    public function revokeForUser(User $user): void
+    {
+        DB::transaction(function () use ($user): void {
+            $sessions = MobileAuthSession::where('user_id', $user->id)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($sessions as $session) {
+                $this->revokeSession($session);
+            }
+
+            // Also revoke tokens issued before mobile authentication sessions.
+            $user->tokens()->delete();
+        });
     }
 
     private function revokeSession(MobileAuthSession $session): void

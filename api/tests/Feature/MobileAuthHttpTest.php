@@ -43,7 +43,7 @@ it('logs in with remembered credentials and refreshes without bearer authenticat
         ->and($renewal->json('refresh_expires_at'))
         ->toBe($initial['refresh_expires_at']);
 
-    // Reinicia os guards para o próximo pedido validar o novo Bearer.
+    // Reset guards so the next request validates the new Bearer token.
     \Illuminate\Support\Facades\Auth::forgetGuards();
 
     $this->withToken($renewal->json('token'))
@@ -215,4 +215,42 @@ it('rejects logout with an unknown refresh credential', function () {
     $this->postJson('/api/mobile/logout-with-refresh', [
         'refresh_token' => bin2hex(random_bytes(32)),
     ])->assertUnauthorized();
+});
+
+it('does not restore old refresh credentials after account reactivation', function () {
+    $provider = createServiceProvider('refresh-revocation@example.test');
+    $user = $provider->user;
+
+    $credentials = app(\App\Actions\ManageMobileSession::class)->start(
+        $user,
+        'phone',
+        true,
+    );
+
+    authenticateApiUser(userWithRole('admin'));
+
+    $this->patchJson(
+        "/api/service-providers/{$provider->id}/deactivate",
+    )->assertOk();
+
+    expect($user->fresh()->is_active)->toBeFalse();
+
+    $this->patchJson(
+        "/api/service-providers/{$provider->id}/activate",
+    )->assertOk();
+
+    expect($user->fresh()->is_active)->toBeTrue();
+
+    $this->withoutHeader('Authorization');
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    $this->postJson('/api/mobile/refresh', [
+        'refresh_token' => $credentials['refresh_token'],
+    ])->assertUnauthorized();
+
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    $this->withToken($credentials['token'])
+        ->getJson('/api/user')
+        ->assertUnauthorized();
 });
