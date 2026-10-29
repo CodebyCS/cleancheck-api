@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 use App\Modules\Properties\Models\Property;
+use App\Modules\Reservations\Ical\HostResolver;
 
 /*
 |--------------------------------------------------------------------------
@@ -74,4 +75,18 @@ function icalProperty(): Property
         'postal_code' => '1000-001',
         'city' => 'Lisboa',
     ]);
+}
+
+/** @param array<string, list<string>> $records host => IPs */
+function fakeDns(array $records): void
+{
+    app()->instance(HostResolver::class, new class($records) extends HostResolver
+    {
+        public function __construct(private readonly array $records) {}
+
+        public function resolve(string $host): array
+        {
+            return $this->records[$host] ?? parent::resolve($host);
+        }
+    });
 }

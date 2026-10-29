@@ -4,25 +4,11 @@ declare(strict_types=1);
 
 use App\Modules\Reservations\Enums\IcalErrorCode;
 use App\Modules\Reservations\Exceptions\IcalFetchException;
-use App\Modules\Reservations\Ical\HostResolver;
 use App\Modules\Reservations\Ical\IcalFetcher;
 use Illuminate\Support\Facades\Http;
 
 const FETCH_FEED_URL = 'https://calendar.example.com/feed.ics?s=fict';
 
-/** @param array<string, list<string>> $records host => IPs */
-function fakeDns(array $records): void
-{
-    app()->instance(HostResolver::class, new class($records) extends HostResolver
-    {
-        public function __construct(private readonly array $records) {}
-
-        public function resolve(string $host): array
-        {
-            return $this->records[$host] ?? parent::resolve($host);
-        }
-    });
-}
 
 function fetchErrorCode(string $url): IcalErrorCode
 {
