@@ -31,7 +31,7 @@ class AuthController extends Controller
         $request->session()->regenerate();
 
         $expiresAt = $request->boolean('remember')
-            ? now()->addDays(30)
+            ? now()->addDays(14)
             : now()->addHours(2);
         $request->session()->put(
             'access_expires_at', $expiresAt->timestamp
