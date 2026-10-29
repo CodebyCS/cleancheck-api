@@ -2,6 +2,7 @@
 
 use App\Models\Role;
 use App\Models\User;
+use App\Modules\Properties\Models\ServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
@@ -74,4 +75,15 @@ function icalProperty(): Property
         'postal_code' => '1000-001',
         'city' => 'Lisboa',
     ]);
+}
+
+function createServiceProvider(string $email, array $attributes = []): ServiceProvider
+{
+    $user = userWithRole('service_provider');
+    $user->update(['email' => $email]);
+
+    return ServiceProvider::create(array_merge([
+        'user_id' => $user->id,
+        'phone' => '912345678',
+    ], $attributes));
 }
