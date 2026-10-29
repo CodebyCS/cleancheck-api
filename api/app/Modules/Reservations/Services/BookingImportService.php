@@ -23,20 +23,33 @@ final class BookingImportService
             ['is_active' => true],
         );
 
-        $syncRun = SyncRun::create([
+        return $this->importInto($source, $this->startRun($source), $result);
+    }
+
+    public function startRun(BookingSource $source): SyncRun
+    {
+        return SyncRun::create([
             'booking_source_id' => $source->id,
             'started_at' => now(),
             'status' => 'running',
         ]);
+    }
 
+    public function failRun(SyncRun $syncRun, Throwable $e): void
+    {
+        $syncRun->update([
+            'status' => 'failed',
+            'finished_at' => now(),
+            'error_message' => $e->getMessage(),
+        ]);
+    }
+
+    public function importInto(BookingSource $source, SyncRun $syncRun, ParseResult $result): ImportResult
+    {
         try {
             $importResult = DB::transaction(fn () => $this->persist($source, $result));
         } catch (Throwable $e) {
-            $syncRun->update([
-                'status' => 'failed',
-                'finished_at' => now(),
-                'error_message' => $e->getMessage(),
-            ]);
+            $this->failRun($syncRun, $e);
 
             throw $e;
         }
@@ -54,7 +67,6 @@ final class BookingImportService
 
         return $importResult;
     }
-
     private function persist(BookingSource $source, ParseResult $result): ImportResult
     {
         $created = [];
