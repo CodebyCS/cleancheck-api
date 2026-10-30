@@ -13,7 +13,7 @@ class ListTasks
 
     public function forStaff(array $filters): LengthAwarePaginator
     {
-        $query = Task::query()->with(['property', 'serviceProvider.user']);
+        $query = Task::query()->with(['property', 'serviceProvider.user', 'completedBy']);
 
         if (($filters['deleted'] ?? null) === 'only') {
             $query->onlyTrashed();
@@ -36,7 +36,7 @@ class ListTasks
     public function findForStaff(int $taskId): Task
     {
         return Task::withTrashed()
-            ->with(['property', 'serviceProvider.user'])
+            ->with(['property', 'serviceProvider.user', 'completedBy'])
             ->findOrFail($taskId);
     }
 

@@ -17,10 +17,13 @@ class TaskStaffResource extends JsonResource
             'type' => $this->type,
             'scheduled_start_at' => $this->scheduled_start_at,
             'scheduled_end_at' => $this->scheduled_end_at,
+            'is_overdue' => $this->resource->isOverdue(),
             'service_provider_id' => $this->service_provider_id,
             'service_provider' => $this->serviceProvider?->user?->name,
             'agreed_amount' => $this->agreed_amount,
             'status' => $this->status,
+            'completed_at' => $this->completed_at,
+            'completed_by' => $this->completedBy?->name,
             'deleted_at' => $this->deleted_at,
         ];
     }
