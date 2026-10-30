@@ -87,3 +87,22 @@ function createServiceProvider(string $email, array $attributes = []): ServicePr
         'phone' => '912345678',
     ], $attributes));
 }
+
+function authenticateApiUser(
+    \App\Models\User $user,
+): \App\Models\User {
+    $token = $user->createToken(
+        'automated-test',
+        ['*'],
+        now()->addHours(2),
+    );
+
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    test()->withHeaders([
+        'Accept' => 'application/json',
+        'Authorization' => 'Bearer '.$token->plainTextToken,
+    ]);
+
+    return $user;
+}

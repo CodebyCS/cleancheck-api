@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
+            'access.valid' => \App\Http\Middleware\EnsureAccessIsValid::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

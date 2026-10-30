@@ -50,7 +50,7 @@ O `.ics` não identifica o imóvel: a associação vem sempre do `property_id`.
 | `EMPTY_FILE` | Ficheiro vazio |
 | `INVALID_ICAL` | Não é um `VCALENDAR` válido |
 
-Sem autenticação ou conta inativa → `401`. Perfil sem permissão (`prestador`) → `403`.
+Sem autenticação ou conta inativa → `401`. Perfil sem permissão (`service_provider`) → `403`.
 
 ## Avisos — evento ignorado ou degradado
 
