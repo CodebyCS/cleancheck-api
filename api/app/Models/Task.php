@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Properties\Models\Property;
@@ -26,6 +27,7 @@ class Task extends Model
         'scheduled_end_at',
         'started_at',
         'completed_at',
+        'completed_by_user_id',
         'agreed_amount',
         'notes',
     ];
@@ -39,6 +41,16 @@ class Task extends Model
         'completed_at' => 'datetime',
         'agreed_amount' => 'decimal:2',
     ];
+
+    public function isOverdue(): bool
+    {
+        if (! in_array($this->status, ['pending', 'in_progress'], true)) {
+            return false;
+        }
+
+        return $this->scheduled_end_at !== null
+            && $this->scheduled_end_at->isPast();
+    }
 
     public function booking(){
         return $this->belongsTo(Booking::class);
@@ -55,6 +67,11 @@ class Task extends Model
     public function assignmentHistory()
     {
         return $this->hasMany(TaskAssignmentHistory::class);
+    }
+
+    public function completedBy()
+    {
+        return $this->belongsTo(User::class, 'completed_by_user_id');
     }
 
 }

@@ -29,23 +29,31 @@ class RestoreTask
 
         if ($task->type === 'checkout_cleaning') {
             $this->validator->validateCheckoutCleaning($data);
+
             if ($data->checkOut->copy()->setTime(11, 30)->isPast()) {throw ValidationException::withMessages([
                 'check_out' => 'A reserva já terminou, não é possível restaurar a limpeza.',
-            ]);
-        }
+                ]);
+            }
+
             $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkOut, $data->nextCheckIn);
         } else {
             $this->validator->validateInspection($data);
             $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkIn);
         }
 
+        $this->validator->validatePropertyActive($data);
+
         DB::transaction(function () use ($task, $schedule) {
-        $task->restore();
-        $task->update([
-            'scheduled_start_at' => $schedule['scheduled_start_at'],
-            'scheduled_end_at'   => $schedule['scheduled_end_at'],
-        ]);
-    });
+            $task->restore();
+            $task->update([
+                'status' => 'pending',
+                'scheduled_start_at' => $schedule['scheduled_start_at'],
+                'scheduled_end_at' => $schedule['scheduled_end_at'],
+                'started_at' => null,
+                'completed_at' => null,
+                'completed_by_user_id' => null,
+            ]);
+        });
 
         return $task;
     }

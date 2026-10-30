@@ -8,33 +8,60 @@ use Illuminate\Validation\ValidationException;
 
 class CompleteTask
 {
-    public function execute(int $taskId, int $serviceProviderId): Task
-    {
-        return DB::transaction(function () use ($taskId, $serviceProviderId): Task {
+    /**
+     * A service provider can only complete tasks assigned to their profile.
+     */
+    public function forProvider(
+        int $taskId,
+        int $serviceProviderId,
+        int $userId,
+    ): Task {
+        return DB::transaction(function () use ($taskId, $serviceProviderId, $userId): Task {
             $task = Task::query()
                 ->whereKey($taskId)
                 ->where('service_provider_id', $serviceProviderId)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            // Safe retry: if the completion was already saved, return the task without changing the timestamp.
-            if ($task->status === 'completed') {
-                return $task;
-            }
-
-            if ($task->status !== 'in_progress') {
-                throw ValidationException::withMessages([
-                    'status' => 'Apenas tarefas em andamento podem ser concluídas.',
-                ]);
-            }
-
-            // Completion does not depend on photos or videos.
-            $task->update([
-                'status' => 'completed',
-                'completed_at' => now(),
-            ]);
-
-            return $task->refresh();
+            return $this->completeTask($task, $userId);
         });
+    }
+
+    /**
+     * The calling route must be protected for admin/supervisor.
+     */
+    public function forStaff(int $taskId, int $userId): Task
+    {
+        return DB::transaction(function () use ($taskId, $userId): Task {
+            $task = Task::query()
+                ->whereKey($taskId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            return $this->completeTask($task, $userId);
+        });
+    }
+
+    private function completeTask(Task $task, int $userId): Task
+    {
+        // A repeat does not change the person who completed the task or alter the `completed_at` field.
+        if ($task->status === 'completed') {
+            return $task;
+        }
+
+        if ($task->status !== 'in_progress') {
+            throw ValidationException::withMessages([
+                'status' => 'Apenas tarefas em andamento podem ser concluídas.',
+            ]);
+        }
+
+        // The conclusion does not require media.
+        $task->update([
+            'status' => 'completed',
+            'completed_at' => now(),
+            'completed_by_user_id' => $userId,
+        ]);
+
+        return $task->refresh();
     }
 }
