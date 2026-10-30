@@ -23,6 +23,10 @@ Route::get('/health', function (): JsonResponse {
 // The login must be accessible without authentication.
 Route::post('/mobile/login', [AuthController::class, 'loginMobile'])
     ->middleware('throttle:5,1');
+Route::post('/mobile/refresh', [AuthController::class, 'refreshMobile'])
+    ->middleware('throttle:10,1');
+Route::post('/mobile/logout-with-refresh', [AuthController::class, 'logoutMobileWithRefresh'],)
+    ->middleware('throttle:10,1');
 
 // Photo links are generated only for authorized viewers and expire.
 Route::get('/service-providers/{serviceProvider}/photo', [ServiceProviderPhotoController::class, 'show'])
@@ -35,9 +39,19 @@ Route::post('/mobile/logout', [AuthController::class, 'logoutMobile'])
     ->middleware('auth:sanctum');
 
 // Transactions that require identification and an active account.
-Route::middleware(['auth:sanctum', 'active'])->group(function () {
+Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
     Route::get('/user', function (Request $request) {
-        return new UserResource($request->user());
+            $token = $request->user()->currentAccessToken();
+            $expiresAt = $token instanceof
+                \Laravel\Sanctum\PersonalAccessToken
+                ? $token->expires_at?->toIso8601String()
+                : \Carbon\CarbonImmutable::createFromTimestamp(
+                    (int) $request->session()->get('access_expires_at')
+                )->toIso8601String();
+
+            return (new UserResource($request->user()))
+                ->additional(['meta' => ['expires_at' => $expiresAt]]);
+
     });
 
     Route::get('/profile', [ProfileController::class, 'show']);

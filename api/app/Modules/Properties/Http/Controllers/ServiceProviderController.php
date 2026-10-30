@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use App\Actions\ManageMobileSession;
 
 class ServiceProviderController extends Controller
 {
@@ -94,9 +95,8 @@ class ServiceProviderController extends Controller
             $user->is_active = false;
             $user->save();
 
-            // Ends the mobile sessions; web sessions end on the next request
-            // through the active middleware.
-            $user->tokens()->delete();
+            // Revoke mobile access and refresh credentials for this account.
+            app(ManageMobileSession::class)->revokeForUser($user);
         });
 
         return new ServiceProviderResource($serviceProvider->fresh('user'));
