@@ -13,6 +13,8 @@ use App\Modules\Reservations\Services\IcalSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use App\Modules\Reservations\Exceptions\SyncInProgressException;
+use Illuminate\Support\Facades\Cache;
 
 uses(RefreshDatabase::class);
 
@@ -111,3 +113,25 @@ it('refuses sources that are not active url sources', function (array $attribute
     'file source' => [['type' => 'file', 'url' => null]],
     'inactive source' => [['is_active' => false]],
 ]);
+
+it('refuses to sync a source that is already being synced', function () {
+    Http::fake();
+    Cache::lock(IcalSyncService::lockKey($this->source->id), 60)->get();
+
+    expect(fn () => syncSource($this->source))->toThrow(SyncInProgressException::class);
+
+    Http::assertNothingSent();
+    expect(SyncRun::count())->toBe(0);
+});
+
+it('releases the lock after a failed sync', function () {
+    Http::fake(['calendar.example.com/*' => Http::sequence()
+        ->push('', 500)
+        ->push(icalFixture('airbnb-valid.ics'))]);
+
+    expect(fn () => syncSource($this->source))->toThrow(IcalFetchException::class);
+
+    syncSource($this->source);
+
+    expect(SyncRun::orderBy('id')->pluck('status')->all())->toBe(['failed', 'success']);
+});

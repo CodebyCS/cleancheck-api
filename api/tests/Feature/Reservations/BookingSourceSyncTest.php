@@ -9,6 +9,8 @@ use App\Modules\Reservations\Models\SyncRun;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use App\Modules\Reservations\Services\IcalSyncService;
+use Illuminate\Support\Facades\Cache;
 
 uses(RefreshDatabase::class);
 
@@ -147,4 +149,17 @@ it('returns 401 without authentication', function () {
     $this->postJson(syncUrl($source->id))->assertUnauthorized();
 
     expect(SyncRun::count())->toBe(0);
+});
+
+it('returns 409 SYNC_IN_PROGRESS while the source is being synced', function () {
+    Http::fake();
+    $source = urlSource();
+    Cache::lock(IcalSyncService::lockKey($source->id), 60)->get();
+
+    $this->actingAs(userWithRole('supervisor'), 'sanctum')
+        ->postJson(syncUrl($source->id))
+        ->assertStatus(409)
+        ->assertJsonPath('error.code', 'SYNC_IN_PROGRESS');
+
+    Http::assertNothingSent();
 });
