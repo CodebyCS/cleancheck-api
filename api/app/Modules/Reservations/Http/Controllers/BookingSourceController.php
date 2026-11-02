@@ -17,6 +17,7 @@ use App\Modules\Reservations\Exceptions\IcalFetchException;
 use App\Modules\Reservations\Exceptions\InvalidIcalException;
 use App\Modules\Reservations\Http\Resources\IcalImportResource;
 use App\Modules\Reservations\Services\IcalSyncService;
+use App\Modules\Reservations\Exceptions\SyncInProgressException;
 
 final class BookingSourceController extends Controller
 {
@@ -59,19 +60,21 @@ final class BookingSourceController extends Controller
             $importResult = $syncService->sync($bookingSource);
         } catch (IcalFetchException|InvalidIcalException $e) {
             return $this->error($e->errorCode, $e->getMessage());
+        } catch (SyncInProgressException $e) {
+            return $this->error($e->errorCode, $e->getMessage(), 409);
         }
 
         return (new IcalImportResource($importResult, $bookingSource->property_id, $bookingSource->channel))
             ->response();
     }
 
-    private function error(IcalErrorCode $code, string $message): JsonResponse
+    private function error(IcalErrorCode $code, string $message, int $status = 422): JsonResponse
     {
         return response()->json([
             'error' => [
                 'code' => $code->value,
                 'message' => $message,
             ],
-        ], 422);
+        ], $status);
     }
 }

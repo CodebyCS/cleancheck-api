@@ -14,4 +14,5 @@ enum IcalErrorCode: string
     case FetchFailed = 'FETCH_FAILED';
     case FeedTooLarge = 'FEED_TOO_LARGE';
     case SourceNotSyncable = 'SOURCE_NOT_SYNCABLE';
+    case SyncInProgress = 'SYNC_IN_PROGRESS';
 }
