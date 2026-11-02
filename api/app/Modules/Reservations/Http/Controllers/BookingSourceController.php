@@ -12,6 +12,11 @@ use App\Modules\Reservations\Models\BookingSource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use App\Modules\Reservations\Enums\IcalErrorCode;
+use App\Modules\Reservations\Exceptions\IcalFetchException;
+use App\Modules\Reservations\Exceptions\InvalidIcalException;
+use App\Modules\Reservations\Http\Resources\IcalImportResource;
+use App\Modules\Reservations\Services\IcalSyncService;
 
 final class BookingSourceController extends Controller
 {
@@ -37,5 +42,36 @@ final class BookingSourceController extends Controller
         return (new BookingSourceResource($source))
             ->response()
             ->setStatusCode(201);
+    }
+
+        public function sync(Request $request, BookingSource $bookingSource, IcalSyncService $syncService): JsonResponse
+    {
+        abort_unless($request->user()->hasRole('admin', 'supervisor'), 403);
+
+        if ($bookingSource->type !== 'url' || ! $bookingSource->is_active) {
+            return $this->error(
+                IcalErrorCode::SourceNotSyncable,
+                'Só fontes URL ativas podem ser sincronizadas.',
+            );
+        }
+
+        try {
+            $importResult = $syncService->sync($bookingSource);
+        } catch (IcalFetchException|InvalidIcalException $e) {
+            return $this->error($e->errorCode, $e->getMessage());
+        }
+
+        return (new IcalImportResource($importResult, $bookingSource->property_id, $bookingSource->channel))
+            ->response();
+    }
+
+    private function error(IcalErrorCode $code, string $message): JsonResponse
+    {
+        return response()->json([
+            'error' => [
+                'code' => $code->value,
+                'message' => $message,
+            ],
+        ], 422);
     }
 }

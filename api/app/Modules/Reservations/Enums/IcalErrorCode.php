@@ -13,4 +13,5 @@ enum IcalErrorCode: string
     case UrlNotAllowed = 'URL_NOT_ALLOWED';
     case FetchFailed = 'FETCH_FAILED';
     case FeedTooLarge = 'FEED_TOO_LARGE';
+    case SourceNotSyncable = 'SOURCE_NOT_SYNCABLE';
 }

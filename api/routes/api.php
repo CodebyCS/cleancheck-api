@@ -51,6 +51,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         ->whereNumber('property');
     Route::post('/properties/{property}/booking-sources', [BookingSourceController::class, 'store'])
         ->whereNumber('property');
+    Route::post('/booking-sources/{bookingSource}/sync', [BookingSourceController::class, 'sync'])
+        ->whereNumber('bookingSource');
 
     Route::get('/service-providers', [ServiceProviderController::class, 'index']);
     Route::post('/service-providers', [ServiceProviderController::class, 'store']);
