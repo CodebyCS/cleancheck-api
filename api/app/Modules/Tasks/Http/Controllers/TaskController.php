@@ -15,6 +15,8 @@ use App\Modules\Tasks\Actions\DeleteTask;
 use App\Modules\Tasks\Actions\RestoreTask;
 use App\Modules\Tasks\Actions\UpdateTask;
 use App\Modules\Tasks\Actions\ListTasks;
+use App\Modules\Tasks\Actions\CancelTask;
+use App\Modules\Tasks\Actions\CompleteTask;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -25,10 +27,6 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class TaskController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-
     public function index(ListTasksRequest $request, ListTasks $action): AnonymousResourceCollection
     {
         return TaskStaffResource::collection($action->forStaff($request->validated()));
@@ -46,7 +44,9 @@ class TaskController extends Controller
     {
         $task = $action->execute($request->integer('booking_id'));
 
-        return response()->json($task, 201);
+        return (new TaskStaffResource($task))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
@@ -54,13 +54,45 @@ class TaskController extends Controller
      */
     public function update(UpdateTaskRequest $request, int $task, UpdateTask $action): JsonResponse
     {
-        return response()->json($action->manual($task, $request->validated(), $request->user()->id));
+        $updatedTask = $action->manual(
+            $task,
+            $request->validated(),
+            $request->user()->id,
+        );
+
+        return (new TaskStaffResource($updatedTask))->response();
     }
+
+    /**
+     * Complete an in-progress task on behalf of staff.
+     */
+    public function complete(
+        Request $request,
+        int $task,
+        CompleteTask $action,
+    ): TaskStaffResource {
+        $completedTask = $action->forStaff(
+            $task,
+            $request->user()->id,
+        );
+
+        return new TaskStaffResource($completedTask);
+    }
+
 
     public function restore(Request $request, int $task, RestoreTask $action): JsonResponse
     {
-        abort_unless($request->user()->hasRole('admin', 'supervisor'), 403);
-        return response()->json($action->manual($task));
+        $restoredTask = $action->manual($task);
+
+        return (new TaskStaffResource($restoredTask))->response();
+    }
+
+    /** Cancel a task: it becomes `cancelled` and is soft deleted. */
+    public function cancel(int $task, CancelTask $action): Response
+    {
+        $action->manual($task);
+
+        return response()->noContent();
     }
 
     /**
