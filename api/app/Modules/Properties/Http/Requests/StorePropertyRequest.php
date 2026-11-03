@@ -4,6 +4,8 @@ namespace App\Modules\Properties\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Override;
 
 class StorePropertyRequest extends FormRequest
@@ -29,6 +31,19 @@ class StorePropertyRequest extends FormRequest
             'postal_code' => ['required', 'regex:/^\d{4}-\d{3}$/'],
             'city' => ['required', 'string', 'max:80'],
             'access_instructions' => ['nullable', 'string', 'max:1000'],
+            'responsible_service_provider_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('service_providers', 'id')->where(
+                    fn ($query) => $query->whereIn(
+                        'user_id',
+                        DB::table('users')->where('is_active', true)->select('id'),
+                    ),
+                ),
+            ],
+            'base_cleaning_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'default_check_in_time' => ['nullable', 'date_format:H:i'],
+            'default_check_out_time' => ['nullable', 'date_format:H:i'],
         ];
     }
 
@@ -45,6 +60,13 @@ class StorePropertyRequest extends FormRequest
             'city.required' => 'Indique a localidade.',
             'city.max' => 'A localidade não pode ter mais de 80 caracteres.',
             'access_instructions.max' => 'As instruções de acesso não podem ter mais de 1000 caracteres.',
+            'responsible_service_provider_id.integer' => 'Escolha um prestador válido.',
+            'responsible_service_provider_id.exists' => 'O prestador responsável não existe ou está inativo.',
+            'base_cleaning_amount.numeric' => 'O valor base deve ser um número.',
+            'base_cleaning_amount.min' => 'O valor base não pode ser negativo.',
+            'base_cleaning_amount.max' => 'O valor base é demasiado elevado.',
+            'default_check_in_time.date_format' => 'A hora de entrada deve ter o formato HH:MM.',
+            'default_check_out_time.date_format' => 'A hora de saída deve ter o formato HH:MM.',
         ];
     }
 }

@@ -13,7 +13,7 @@ final class IcalUploadRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->hasRole('admin', 'supervisor') ?? false;
     }
 
     public function rules(): array

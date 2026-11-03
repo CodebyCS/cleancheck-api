@@ -28,6 +28,9 @@ class StoreServiceProviderRequest extends FormRequest
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'max:255'],
             'phone' => ['required', 'regex:/^\+?\d{9,15}$/'],
+            'address' => ['nullable', 'string', 'max:200'],
+            'postal_code' => ['nullable', 'regex:/^\d{4}-\d{3}$/'],
+            'city' => ['nullable', 'string', 'max:80'],
         ];
     }
 
@@ -44,6 +47,9 @@ class StoreServiceProviderRequest extends FormRequest
             'password.min' => 'A password deve ter pelo menos 8 caracteres.',
             'phone.required' => 'Indique o telefone.',
             'phone.regex' => 'Indique um telefone válido, com 9 a 15 dígitos.',
+            'address.max' => 'A morada não pode ter mais de 200 caracteres.',
+            'postal_code.regex' => 'O código postal deve ter o formato 1234-567.',
+            'city.max' => 'A localidade não pode ter mais de 80 caracteres.',
         ];
     }
 }

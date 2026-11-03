@@ -31,7 +31,7 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
-            'role_id' => Role::where('name', 'prestador')->firstOrFail()->id,
+            'role_id' => Role::where('name', 'service_provider')->firstOrFail()->id,
         ];
     }
 

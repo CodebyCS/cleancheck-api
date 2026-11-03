@@ -2,11 +2,12 @@
 
 use App\Models\Role;
 use App\Models\User;
+use App\Modules\Properties\Models\Property;
+use App\Modules\Properties\Models\ServiceProvider;
+use App\Modules\Reservations\Ical\HostResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
-use App\Modules\Properties\Models\Property;
-use App\Modules\Reservations\Ical\HostResolver;
 
 /*
 |--------------------------------------------------------------------------
@@ -89,4 +90,34 @@ function fakeDns(array $records): void
             return $this->records[$host] ?? parent::resolve($host);
         }
     });
+}
+
+function createServiceProvider(string $email, array $attributes = []): ServiceProvider
+{
+    $user = userWithRole('service_provider');
+    $user->update(['email' => $email]);
+
+    return ServiceProvider::create(array_merge([
+        'user_id' => $user->id,
+        'phone' => '912345678',
+    ], $attributes));
+}
+
+function authenticateApiUser(
+    \App\Models\User $user,
+): \App\Models\User {
+    $token = $user->createToken(
+        'automated-test',
+        ['*'],
+        now()->addHours(2),
+    );
+
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    test()->withHeaders([
+        'Accept' => 'application/json',
+        'Authorization' => 'Bearer '.$token->plainTextToken,
+    ]);
+
+    return $user;
 }

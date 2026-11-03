@@ -30,7 +30,7 @@ it('creates a service provider linked to a prestador account', function () {
 
     $user = User::where('email', 'ana@example.test')->firstOrFail();
 
-    expect($user->role->name)->toBe('prestador')
+    expect($user->role->name)->toBe('service_provider')
         ->and($user->is_active)->toBeTrue()
         ->and($user->serviceProvider)->not->toBeNull()
         ->and($user->serviceProvider->phone)->toBe('912345678');
@@ -51,11 +51,11 @@ it('creates an account that can log in on mobile', function () {
         'password' => 'Password-123',
     ])
         ->assertOk()
-        ->assertJsonPath('user.role', 'prestador');
+        ->assertJsonPath('user.role', 'service_provider');
 });
 
 it('rejects an email that already has an account', function () {
-    userWithRole('prestador')->update(['email' => 'ana@example.test']);
+    userWithRole('service_provider')->update(['email' => 'ana@example.test']);
 
     $this->actingAs(userWithRole('admin'), 'sanctum')
         ->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
@@ -81,7 +81,7 @@ it('rejects invalid fields', function () {
 });
 
 it('forbids a prestador from creating or listing service providers', function () {
-    $this->actingAs(userWithRole('prestador'), 'sanctum')
+    $this->actingAs(userWithRole('service_provider'), 'sanctum')
         ->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
         ->assertForbidden();
 
