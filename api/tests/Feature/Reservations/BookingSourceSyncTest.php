@@ -129,7 +129,7 @@ it('returns 403 for a service provider without syncing', function () {
     Http::fake();
     $source = urlSource();
 
-    $this->actingAs(userWithRole('prestador'), 'sanctum')
+    $this->actingAs(userWithRole('service_provider'), 'sanctum')
         ->postJson(syncUrl($source->id))
         ->assertForbidden();
 

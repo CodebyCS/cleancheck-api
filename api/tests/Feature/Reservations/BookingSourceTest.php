@@ -83,7 +83,7 @@ it('returns 404 for a property that does not exist', function () {
 });
 
 it('returns 403 for a service provider', function () {
-    $user = userWithRole('prestador');
+    $user = userWithRole('service_provider');
 
     $this->actingAs($user, 'sanctum')
         ->getJson(bookingSourcesUrl($this->property->id))
