@@ -2,9 +2,11 @@
 
 namespace App\Modules\Tasks\Infrastructure;
 
+use App\Modules\Properties\Models\Property;
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Tasks\Contracts\BookingDataProvider;
 use App\Modules\Tasks\Support\BookingSnapshot;
+use App\Modules\Tasks\Support\PropertySchedule;
 use Illuminate\Support\Carbon;
 use App\Modules\Reservations\Enums\ReservationStatus;
 
@@ -31,6 +33,22 @@ class EloquentBookingDataProvider implements BookingDataProvider
             checkIn: $checkIn ? Carbon::parse($checkIn) : null,
             checkOut: $checkOut ? Carbon::parse($checkOut) : null,
             nextCheckIn: ($propertyId && $checkOut) ? $this->findNextCheckIn($booking->id, $propertyId, Carbon::parse($checkOut)) : null,
+            propertySchedule: $propertyId ? $this->findPropertySchedule($propertyId) : null,
+        );
+    }
+
+    private function findPropertySchedule(int $propertyId): ?PropertySchedule
+    {
+        $property = Property::find($propertyId);
+
+        if (!$property) {
+            return null;
+        }
+
+        return new PropertySchedule(
+            checkOutTime: $property->default_check_out_time,
+            checkInTime: $property->default_check_in_time,
+            timezone: $property->timezone ?? Property::DEFAULT_TIMEZONE,
         );
     }
 
