@@ -8,6 +8,7 @@ use App\Modules\Properties\Http\Controllers\ServiceProviderController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderPhotoController;
 use App\Modules\Reservations\Http\Controllers\IcalImportController;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
+use App\Modules\Reservations\Http\Controllers\BookingSourceController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -73,6 +74,13 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
     Route::put('/properties/{property}', [PropertyController::class, 'update'])->whereNumber('property');
     Route::patch('/properties/{property}/activate', [PropertyController::class, 'activate'])->whereNumber('property');
     Route::patch('/properties/{property}/deactivate', [PropertyController::class, 'deactivate'])->whereNumber('property');
+
+    Route::get('/properties/{property}/booking-sources', [BookingSourceController::class, 'index'])
+        ->whereNumber('property');
+    Route::post('/properties/{property}/booking-sources', [BookingSourceController::class, 'store'])
+        ->whereNumber('property');
+    Route::post('/booking-sources/{bookingSource}/sync', [BookingSourceController::class, 'sync'])
+        ->whereNumber('bookingSource');
 
     Route::get('/service-providers', [ServiceProviderController::class, 'index']);
     Route::post('/service-providers', [ServiceProviderController::class, 'store']);
