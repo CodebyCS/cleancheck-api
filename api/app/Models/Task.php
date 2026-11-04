@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Properties\Models\Property;
@@ -55,6 +56,11 @@ class Task extends Model
     public function assignmentHistory()
     {
         return $this->hasMany(TaskAssignmentHistory::class);
+    }
+
+    public function impediments(): HasMany
+    {
+        return $this->hasMany(TaskImpediment::class);
     }
 
 }
