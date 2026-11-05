@@ -46,7 +46,7 @@ class TaskGenerationValidator
         }
 
         if ($data->checkIn) {
-            // Same deadline as the schedule: the property check-in time, otherwise 14:30.
+            // Same deadline as the schedule: 14:30, or the property check-in time minus 30 minutes.
             $deadline = $this->cleaningSchedule
                 ->calculate('checkin_inspection', $data->checkIn, null, $data->propertySchedule)['scheduled_end_at'];
 

@@ -82,9 +82,9 @@ it('schedules the cleaning with the property hours on the adjusted check-out day
 
     $task = app(CreateCheckoutCleaningTask::class)->execute($booking->id);
 
-    // Lisbon is UTC+0 in December.
-    expect($task->scheduled_start_at->format('Y-m-d H:i'))->toBe('2026-12-06 10:00')
-        ->and($task->scheduled_end_at->format('Y-m-d H:i'))->toBe('2026-12-08 16:00');
+    // Lisbon is UTC+0 in December: check-out 10:00 + 30 min, check-in 16:00 - 30 min.
+    expect($task->scheduled_start_at->format('Y-m-d H:i'))->toBe('2026-12-06 10:30')
+        ->and($task->scheduled_end_at->format('Y-m-d H:i'))->toBe('2026-12-08 15:30');
 });
 
 it('keeps 11:30 and 14:30 when the property has no reference hours', function () {
@@ -106,7 +106,7 @@ it('keeps 11:30 and 14:30 when the property has no reference hours', function ()
 });
 
 it('uses the property check-in time as the inspection deadline', function () {
-    Carbon::setTestNow('2026-12-05 15:30:00');
+    Carbon::setTestNow('2026-12-05 15:00:00');
     $validator = new TaskGenerationValidator();
 
     $snapshot = fn (?string $checkInTime) => new BookingSnapshot(
@@ -118,7 +118,7 @@ it('uses the property check-in time as the inspection deadline', function () {
         propertySchedule: new PropertySchedule('11:00', $checkInTime, 'Europe/Lisbon'),
     );
 
-    // Deadline 16:00 has not passed yet.
+    // Deadline 15:30 (16:00 - 30 min) has not passed yet.
     $validator->validateInspection($snapshot('16:00'));
 
     // Without reference hours the deadline is 14:30, which has passed.

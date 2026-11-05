@@ -8,15 +8,20 @@ use Illuminate\Support\Carbon;
 
 class CleaningSchedule
 {
-    // System defaults, used when the property has no reference hours.
+    // Primary task window, based on the Airbnb/Booking standard (check-out 11:00, check-in 15:00).
     public const DEFAULT_START_TIME = '11:30';
 
     public const DEFAULT_END_TIME = '14:30';
 
+    // When the property defines its own guest hours, the task keeps this gap
+    // after the guest leaves and before the next guest arrives.
+    public const MARGIN_MINUTES = 30;
+
     /**
      * Precedence:
      * - the day comes from the booking (local adjustment, otherwise the source value);
-     * - the hour comes from the property reference hours, otherwise the system default;
+     * - the hour is 11:30 / 14:30, unless the property defines its guest hours
+     *   (then check-out + 30 min / check-in - 30 min);
      * - both are resolved in the property's timezone and returned in the input timezone.
      */
     public function calculate(
@@ -25,25 +30,40 @@ class CleaningSchedule
         ?DateTimeInterface $nextCheckIn = null,
         ?PropertySchedule $property = null,
     ): array {
-        $startTime = $property?->checkOutTime ?? self::DEFAULT_START_TIME;
-        $endTime = $property?->checkInTime ?? self::DEFAULT_END_TIME;
-
         switch ($type) {
             case 'checkout_cleaning':
                 return [
-                    'scheduled_start_at' => $this->atTime($referenceDate, $startTime, $property),
-                    'scheduled_end_at'   => $nextCheckIn ? $this->atTime($nextCheckIn, $endTime, $property) : null,
+                    'scheduled_start_at' => $this->startAt($referenceDate, $property),
+                    'scheduled_end_at'   => $nextCheckIn ? $this->endAt($nextCheckIn, $property) : null,
                 ];
 
             case 'checkin_inspection':
                 return [
                     'scheduled_start_at' => Carbon::now(),
-                    'scheduled_end_at' => $this->atTime($referenceDate, $endTime, $property),
+                    'scheduled_end_at' => $this->endAt($referenceDate, $property),
                 ];
 
             default:
                 throw new \InvalidArgumentException("Tipo de tarefa não compatível: {$type}");
         }
+    }
+
+    private function startAt(DateTimeInterface $date, ?PropertySchedule $property): Carbon
+    {
+        if ($property?->checkOutTime === null) {
+            return $this->atTime($date, self::DEFAULT_START_TIME, $property);
+        }
+
+        return $this->atTime($date, $property->checkOutTime, $property)->addMinutes(self::MARGIN_MINUTES);
+    }
+
+    private function endAt(DateTimeInterface $date, ?PropertySchedule $property): Carbon
+    {
+        if ($property?->checkInTime === null) {
+            return $this->atTime($date, self::DEFAULT_END_TIME, $property);
+        }
+
+        return $this->atTime($date, $property->checkInTime, $property)->subMinutes(self::MARGIN_MINUTES);
     }
 
     /**

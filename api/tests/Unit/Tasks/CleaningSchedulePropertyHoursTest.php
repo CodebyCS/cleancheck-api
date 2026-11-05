@@ -32,7 +32,7 @@ class CleaningSchedulePropertyHoursTest extends TestCase
 
     public function test_checkout_cleaning_uses_property_hours_in_property_timezone(): void
     {
-        // Lisbon is UTC+1 in summer time, so 11:00 local is 10:00 UTC.
+        // Lisbon is UTC+1 in summer: 11:00 + 30 min = 11:30 local (10:30 UTC), 16:00 - 30 min = 15:30 local (14:30 UTC).
         $property = new PropertySchedule('11:00:00', '16:00:00', 'Europe/Lisbon');
 
         $result = $this->schedule->calculate(
@@ -42,8 +42,8 @@ class CleaningSchedulePropertyHoursTest extends TestCase
             $property,
         );
 
-        $this->assertSame('2026-10-20 10:00:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
-        $this->assertSame('2026-10-21 15:00:00', $result['scheduled_end_at']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-20 10:30:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-21 14:30:00', $result['scheduled_end_at']->format('Y-m-d H:i:s'));
         $this->assertSame('UTC', $result['scheduled_start_at']->getTimezone()->getName());
     }
 
@@ -59,7 +59,7 @@ class CleaningSchedulePropertyHoursTest extends TestCase
             $property,
         );
 
-        $this->assertSame('2026-12-20 11:00:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-12-20 11:30:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
         $this->assertNull($result['scheduled_end_at']);
     }
 
@@ -91,7 +91,7 @@ class CleaningSchedulePropertyHoursTest extends TestCase
             $property,
         );
 
-        $this->assertSame('2026-10-21 10:00:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-21 10:30:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
     }
 
     public function test_inspection_closes_at_property_check_in_time(): void
@@ -107,6 +107,7 @@ class CleaningSchedulePropertyHoursTest extends TestCase
         );
 
         $this->assertSame('2026-10-10 09:00:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
-        $this->assertSame('2026-10-15 15:00:00', $result['scheduled_end_at']->format('Y-m-d H:i:s'));
+        // 16:00 - 30 min = 15:30 in Lisbon, 14:30 UTC.
+        $this->assertSame('2026-10-15 14:30:00', $result['scheduled_end_at']->format('Y-m-d H:i:s'));
     }
 }

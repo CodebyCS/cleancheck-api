@@ -12,6 +12,8 @@
 - `timezone` tem de ser um identificador válido (`Europe/Lisbon`, `Atlantic/Azores`, `Atlantic/Madeira`...). Offsets como `+01:00` são rejeitados.
 - No `PUT`, se `timezone` não for enviado, mantém-se o atual.
 - Erro de validação → `422` com o campo em `errors`.
+- As horas são opcionais e não têm valor por defeito no imóvel. Vazias, a task usa 11:30 / 14:30 (padrão Airbnb/Booking: saída 11:00, entrada 15:00).
+- **As horas têm de ser iguais às do anúncio no Airbnb/Booking.** O iCal só traz datas, por isso a API não consegue confirmar; uma hora de saída mais cedo do que a real marca a limpeza antes de o hóspede sair.
 
 ## Precedência
 
@@ -20,7 +22,7 @@ Para calcular as janelas das tasks (ver [`Docs/contratos/tasks.md`](../contratos
 | O quê | 1.º | 2.º | 3.º |
 |---|---|---|---|
 | **Dia** | Ajuste local da reserva (`overridden_*`) | Valor de origem (`source_*`, iCal) | — |
-| **Hora** | Horário de referência da propriedade | Valor por defeito do sistema (11:30 início, 14:30 fim) | — |
+| **Hora da task** | 11:30 início / 14:30 fim | Se a propriedade tiver hora: saída + 30 min / entrada − 30 min | — |
 | **Fuso** | `timezone` da propriedade | `Europe/Lisbon` | — |
 
 - O dia é lido **no fuso da propriedade**: uma data às 23:30 UTC pode já ser o dia seguinte em Lisboa no horário de verão.
@@ -30,8 +32,12 @@ Para calcular as janelas das tasks (ver [`Docs/contratos/tasks.md`](../contratos
 
 | Janela | Início | Fim |
 |---|---|---|
-| Limpeza (`checkout_cleaning`) | Dia do check-out, hora de saída | Dia do próximo check-in, hora de entrada (ou `null`) |
-| Inspeção (`checkin_inspection`) | Momento da criação | Dia do check-in, hora de entrada |
+| Limpeza (`checkout_cleaning`) | Dia do check-out, 11:30 (ou saída + 30 min) | Dia do próximo check-in, 14:30 (ou entrada − 30 min), ou `null` |
+| Inspeção (`checkin_inspection`) | Momento da criação | Dia do check-in, 14:30 (ou entrada − 30 min) |
+
+A folga de 30 min (`CleaningSchedule::MARGIN_MINUTES`) evita que a limpeza comece antes de o hóspede sair ou acabe depois de o próximo entrar.
+
+O módulo Tasks não depende do módulo Properties: lê só as três colunas através de `PropertyScheduleProvider` (`DatabasePropertyScheduleProvider`). Sem propriedade, a task usa 11:30 / 14:30.
 
 ## Exemplos
 
@@ -39,9 +45,9 @@ Propriedade com saída 11:00, entrada 16:00 e fuso `Europe/Lisbon`:
 
 | Reserva | Limpeza (UTC) | Equivale em Lisboa |
 |---|---|---|
-| Check-out 20/10/2026, próximo check-in 21/10/2026 | 20/10 10:00 → 21/10 15:00 | 11:00 → 16:00 (verão, UTC+1) |
-| Check-out 20/12/2026, sem próximo check-in | 20/12 11:00 → `null` | 11:00 (inverno, UTC+0) |
-| Check-out de origem 05/12/2026, ajustado para 06/12/2026 | começa 06/12 11:00 | O ajuste local ganha à origem |
+| Check-out 20/10/2026, próximo check-in 21/10/2026 | 20/10 10:30 → 21/10 14:30 | 11:30 → 15:30 (verão, UTC+1) |
+| Check-out 20/12/2026, sem próximo check-in | 20/12 11:30 → `null` | 11:30 (inverno, UTC+0) |
+| Check-out de origem 05/12/2026, ajustado para 06/12/2026 | começa 06/12 11:30 | O ajuste local ganha à origem |
 
 Propriedade sem horas de referência: 11:30 e 14:30 no fuso da propriedade.
 

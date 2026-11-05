@@ -33,8 +33,8 @@ Nota: o estado `cancelled` existe na tabela, mas **o módulo não o usa**. Reser
 
 - Criada automaticamente, a partir de uma reserva.
 - O estado inicial é `pending`.
-- `scheduled_start_at`: hora de saída da propriedade (`default_check_out_time`) no dia do check-out; 11:30 se a propriedade não a tiver.
-- `scheduled_end_at`: hora de entrada da propriedade (`default_check_in_time`) no dia do próximo check-in da mesma propriedade; 14:30 se a propriedade não a tiver. Se não existir próximo check-in conhecido, fica `null`.
+- `scheduled_start_at`: 11:30 do dia do check-out. Se a propriedade tiver hora de saída (`default_check_out_time`), 30 min depois dessa hora.
+- `scheduled_end_at`: 14:30 do dia do próximo check-in da mesma propriedade. Se a propriedade tiver hora de entrada (`default_check_in_time`), 30 min antes dessa hora. Se não existir próximo check-in conhecido, fica `null`.
 - O prestador de serviços não é atribuído na criação.
 - O check-in da própria reserva não é obrigatório para criar a limpeza.
 
@@ -43,14 +43,14 @@ Nota: o estado `cancelled` existe na tabela, mas **o módulo não o usa**. Reser
 - Criada manualmente pelo adm/supervisor, sempre associada a uma reserva (normalmente a seguinte).
 - O estado inicial é `pending`.
 - `scheduled_start_at`: o momento em que a task é criada.
-- `scheduled_end_at`: hora de entrada da propriedade no dia do check-in da reserva (prazo máximo); 14:30 se a propriedade não a tiver.
+- `scheduled_end_at`: 14:30 do dia do check-in da reserva (prazo máximo), ou 30 min antes da hora de entrada da propriedade, se definida.
 - Só pode ser criada se esse prazo ainda não passou.
 - Se a janela terminar sem a task estar concluída, a task fica em atraso até o operador a marcar como concluída.
 
 ### 3.3 Regras comuns
 
 - Não pode existir mais do que uma task do mesmo tipo para a mesma reserva (índice único `booking_id` + `type`, que inclui as tasks apagadas).
-- Os horários seguem a precedência descrita em [`Docs/contracts/property-schedule.md`](../contracts/property-schedule.md): o dia vem da reserva, a hora vem da propriedade (ou 11:30/14:30 por defeito) e ambos são calculados no fuso da propriedade (`properties.timezone`). As datas são guardadas em UTC.
+- Os horários seguem a precedência descrita em [`Docs/contracts/property-schedule.md`](../contracts/property-schedule.md): o dia vem da reserva, a hora é 11:30/14:30, ou a da propriedade com 30 min de folga, se definida, e ambos são calculados no fuso da propriedade (`properties.timezone`). As datas são guardadas em UTC.
 - A propriedade da task é a propriedade da fonte da reserva.
 
 ## 4. Validações
@@ -63,7 +63,7 @@ Aplicadas sobre os dados da reserva antes de criar, atualizar ou restaurar:
 | Data de check-out válida | Sim | Não |
 | Data de check-in válida | Não | Sim |
 | Check-in anterior ao check-out (quando ambos existem) | Sim | Não |
-| O prazo (hora de entrada da propriedade, ou 14:30, do dia do check-in) não pode ter passado | Não | Sim |
+| O prazo (14:30, ou entrada da propriedade − 30 min, do dia do check-in) não pode ter passado | Não | Sim |
 
 ## 5. Ciclo de vida
 
@@ -183,7 +183,7 @@ Um único ficheiro (`EloquentBookingDataProvider`) lê as tabelas `bookings` e `
 
 - `bookings`: `id`, `booking_source_id`, `source_check_in_at`, `source_check_out_at`, `overridden_check_in_at`, `overridden_check_out_at`
 - `booking_sources`: `property_id`
-- `properties`: `default_check_out_time`, `default_check_in_time`, `timezone` (enviados no `BookingSnapshot` como `PropertySchedule`)
+- `properties`: `default_check_out_time`, `default_check_in_time`, `timezone`, lidas por `DatabasePropertyScheduleProvider` (sem usar o módulo Properties) e enviadas no `BookingSnapshot` como `PropertySchedule`
 
 As datas efetivas são as `overridden_*` quando existem e, caso contrário, as `source_*`. **Renomear estas colunas quebra o módulo Tasks**, por isso fazem parte do contrato entre os dois módulos. O próximo check-in é a reserva mais próxima da mesma propriedade com check-in na data do check-out ou depois dela.
 
