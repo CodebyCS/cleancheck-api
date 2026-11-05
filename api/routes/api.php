@@ -58,8 +58,16 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
 
     Route::get('/profile', [ProfileController::class, 'show']);
 
-    Route::post('/reservations/ical/read', IcalReadController::class);
-    Route::post('/reservations/ical/import', IcalImportController::class);
+    // Admin and Supervisor roles are allowed to access management routes.
+    Route::middleware('role:admin,supervisor')->group(function (): void {
+        // iCal
+        Route::post('/reservations/ical/read', IcalReadController::class);
+        Route::post('/reservations/ical/import', IcalImportController::class);
+
+        
+    });
+
+
 
     // Route Tasks
     Route::get('/tasks', [TaskController::class, 'index']);
