@@ -8,7 +8,9 @@ use App\Modules\Properties\Http\Controllers\ServiceProviderController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderPhotoController;
 use App\Modules\Reservations\Http\Controllers\IcalImportController;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
+use App\Modules\Reservations\Http\Controllers\BookingSourceController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
+use App\Modules\Tasks\Http\Controllers\TaskImpedimentController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -56,12 +58,21 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
 
     Route::get('/profile', [ProfileController::class, 'show']);
 
-    Route::post('/reservations/ical/read', IcalReadController::class);
-    Route::post('/reservations/ical/import', IcalImportController::class);
+    // Admin and Supervisor roles are allowed to access management routes.
+    Route::middleware('role:admin,supervisor')->group(function (): void {
+        // iCal
+        Route::post('/reservations/ical/read', IcalReadController::class);
+        Route::post('/reservations/ical/import', IcalImportController::class);
+
+        
+    });
+
+
 
     // Route Tasks
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/{task}', [TaskController::class, 'show'])->whereNumber('task');
+    Route::post('/tasks/{task}/impediments', [TaskImpedimentController::class, 'store'])->whereNumber('task');
 
     Route::post('/tasks', [TaskController::class, 'store']);
     Route::patch('/tasks/{task}', [TaskController::class, 'update'])->whereNumber('task');
@@ -73,6 +84,13 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
     Route::put('/properties/{property}', [PropertyController::class, 'update'])->whereNumber('property');
     Route::patch('/properties/{property}/activate', [PropertyController::class, 'activate'])->whereNumber('property');
     Route::patch('/properties/{property}/deactivate', [PropertyController::class, 'deactivate'])->whereNumber('property');
+
+    Route::get('/properties/{property}/booking-sources', [BookingSourceController::class, 'index'])
+        ->whereNumber('property');
+    Route::post('/properties/{property}/booking-sources', [BookingSourceController::class, 'store'])
+        ->whereNumber('property');
+    Route::post('/booking-sources/{bookingSource}/sync', [BookingSourceController::class, 'sync'])
+        ->whereNumber('bookingSource');
 
     Route::get('/service-providers', [ServiceProviderController::class, 'index']);
     Route::post('/service-providers', [ServiceProviderController::class, 'store']);

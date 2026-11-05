@@ -292,3 +292,37 @@ Estes resultados não representam aprovação da suite completa dos módulos nem
 - Rever os limites de pedidos conforme o requisito acordado com o professor.
 
 Credenciais utilizáveis, cookies e tokens reais não devem ser incluídos neste documento, em logs de aplicação ou nas evidências publicadas.
+
+## Matriz de permissões implementada
+
+| Operação | admin | supervisor | service_provider |
+|---|---|---|---|
+| Listar e gerir imóveis | Permitido | Permitido | 403 |
+| Listar e gerir prestadores, incluindo fotos | Permitido | Permitido | 403 |
+| Ler e importar ficheiros iCal | Permitido | Permitido | 403 |
+| Consultar lista de tarefas | Todas as disponíveis | Todas as disponíveis | Apenas as atribuídas ao próprio |
+| Consultar detalhe de tarefa | Permitido | Permitido | Apenas se atribuída ao próprio; restantes devolvem 404 |
+| Criar, alterar, atribuir, eliminar e restaurar tarefas | Permitido, sujeito às regras de negócio | Permitido, sujeito às regras de negócio | 403 |
+| Consultar `/api/user` | Própria identidade | Própria identidade | Própria identidade |
+| Consultar `/api/profile` | Próprio registo de prestador, se existir | Próprio registo de prestador, se existir | Próprio registo de prestador |
+
+Sem autenticação válida ou com conta inativa, as rotas protegidas devolvem 401.
+
+O Supervisor tem atualmente o mesmo âmbito do Administrador nas operações desta matriz. Esta descrição regista o comportamento implementado e deve ser confirmada pela equipa.
+
+A consulta de fotografias utiliza uma rota com assinatura temporária; não exige Bearer no download. A emissão do endereço assinado está sujeita à autorização do utilizador.
+
+### Validação da matriz
+
+PermissionMatrixTest: 29 testes aprovados, com 51 assertions.
+
+Verificados:
+
+- Permissões de leitura de cadastros por perfil.
+- Autorização da criação de cadastros antes da validação dos dados.
+- Autorização das operações iCal antes da validação do ficheiro.
+- Restrição de alterações de cadastros para prestadores.
+- Consulta de tarefas limitada ao prestador atribuído.
+- Atribuição de tarefas por admin e supervisor.
+- Rejeição de alterações de tarefas por prestadores.
+- Rejeição de pedidos sem autenticação.
