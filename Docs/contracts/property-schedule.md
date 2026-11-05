@@ -25,7 +25,8 @@ Para calcular as janelas das tasks (ver [`Docs/contratos/tasks.md`](../contratos
 | **Hora da task** | 11:30 início / 14:30 fim | Se a propriedade tiver hora: saída + 30 min / entrada − 30 min | — |
 | **Fuso** | `timezone` da propriedade | `Europe/Lisbon` | — |
 
-- O dia é lido **no fuso da propriedade**: uma data às 23:30 UTC pode já ser o dia seguinte em Lisboa no horário de verão.
+- O dia é o **dia de calendário da reserva**, sem conversão. As datas do iCal ficam guardadas às 00:00 UTC; converter para um fuso atrás de UTC (ex.: `America/Sao_Paulo`) daria o dia anterior.
+- A hora é aplicada **no fuso da propriedade** e convertida para UTC (ex.: 11:30 em São Paulo = 14:30 UTC).
 - A hora das datas da reserva não é usada, porque o iCal só traz datas de dia inteiro.
 - As datas calculadas são guardadas em UTC.
 - O ajuste local da reserva continua a mudar apenas a reserva interna. Não altera o fornecedor iCal.

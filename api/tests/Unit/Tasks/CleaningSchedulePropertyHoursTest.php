@@ -79,19 +79,36 @@ class CleaningSchedulePropertyHoursTest extends TestCase
         $this->assertSame('2026-12-22 19:30:00', $result['scheduled_end_at']->format('Y-m-d H:i:s'));
     }
 
-    public function test_the_day_is_taken_in_the_property_timezone(): void
+    public function test_keeps_the_booking_day_for_timezones_behind_utc(): void
     {
-        // 23:30 UTC on 20/10 is already 21/10 in Lisbon.
-        $property = new PropertySchedule('11:00', '16:00', 'Europe/Lisbon');
+        // iCal dates are stored at 00:00 UTC. Converting them to São Paulo (UTC-3)
+        // would give 19/10 21:00, so the calendar day must be kept as 20/10.
+        $property = new PropertySchedule('11:00', '15:00', 'America/Sao_Paulo');
 
         $result = $this->schedule->calculate(
             'checkout_cleaning',
-            $this->utc('2026-10-20 23:30:00'),
+            $this->utc('2026-10-20 00:00:00'),
+            $this->utc('2026-10-22 00:00:00'),
+            $property,
+        );
+
+        // 11:30 and 14:30 in São Paulo are 14:30 and 17:30 UTC.
+        $this->assertSame('2026-10-20 14:30:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-22 17:30:00', $result['scheduled_end_at']->format('Y-m-d H:i:s'));
+    }
+
+    public function test_property_without_hours_keeps_the_booking_day_in_sao_paulo(): void
+    {
+        $property = new PropertySchedule(null, null, 'America/Sao_Paulo');
+
+        $result = $this->schedule->calculate(
+            'checkout_cleaning',
+            $this->utc('2026-10-20 00:00:00'),
             null,
             $property,
         );
 
-        $this->assertSame('2026-10-21 10:30:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-20 14:30:00', $result['scheduled_start_at']->format('Y-m-d H:i:s'));
     }
 
     public function test_inspection_closes_at_property_check_in_time(): void

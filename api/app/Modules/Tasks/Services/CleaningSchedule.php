@@ -22,7 +22,10 @@ class CleaningSchedule
      * - the day comes from the booking (local adjustment, otherwise the source value);
      * - the hour is 11:30 / 14:30, unless the property defines its guest hours
      *   (then check-out + 30 min / check-in - 30 min);
-     * - both are resolved in the property's timezone and returned in the input timezone.
+     * - the hour is applied in the property's timezone and returned in the input timezone.
+     *
+     * Booking dates come from iCal as calendar dates stored at 00:00 UTC, so the day is
+     * read as-is (never converted), otherwise properties behind UTC would get the previous day.
      */
     public function calculate(
         string $type,
@@ -67,7 +70,7 @@ class CleaningSchedule
     }
 
     /**
-     * Keeps the local day of $date in the property's timezone and applies $time to it.
+     * Applies $time, in the property's timezone, to the calendar day of $date.
      */
     private function atTime(DateTimeInterface $date, string $time, ?PropertySchedule $property): Carbon
     {
@@ -77,8 +80,7 @@ class CleaningSchedule
             return $original->copy()->setTimeFromTimeString($time);
         }
 
-        return $original->copy()
-            ->setTimezone($property->timezone)
+        return Carbon::parse($original->toDateString(), $property->timezone)
             ->setTimeFromTimeString($time)
             ->setTimezone($original->getTimezone());
     }
