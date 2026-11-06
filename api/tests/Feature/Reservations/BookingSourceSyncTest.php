@@ -43,8 +43,8 @@ it('syncs a url source and returns the imported bookings', function () {
     Http::fake(['calendar.example.com/*' => Http::response(icalFixture('airbnb-valid.ics'))]);
     $source = urlSource();
 
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(syncUrl($source->id))
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(syncUrl($source->id))
         ->assertOk()
         ->assertJsonPath('propertyId', $source->property_id)
         ->assertJsonPath('channel', 'airbnb')
@@ -60,10 +60,11 @@ it('reports existing bookings when the source is synced again', function () {
     $source = urlSource();
     $user = userWithRole('admin');
 
-    $this->actingAs($user, 'sanctum')->postJson(syncUrl($source->id))->assertOk();
+    authenticateApiUser($user);
+    $this->postJson(syncUrl($source->id))->assertOk();
 
-    $this->actingAs($user, 'sanctum')
-        ->postJson(syncUrl($source->id))
+    authenticateApiUser($user);
+    $this->postJson(syncUrl($source->id))
         ->assertOk()
         ->assertJsonCount(0, 'created')
         ->assertJsonCount(3, 'existing');
@@ -75,8 +76,8 @@ it('returns 422 FETCH_FAILED and records the failure when the download fails', f
     Http::fake(['calendar.example.com/*' => Http::failedConnection()]);
     $source = urlSource();
 
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(syncUrl($source->id))
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(syncUrl($source->id))
         ->assertUnprocessable()
         ->assertJsonPath('error.code', 'FETCH_FAILED');
 
@@ -87,8 +88,8 @@ it('returns 422 URL_NOT_ALLOWED without contacting a private host', function () 
     Http::fake();
     $source = urlSource('https://internal.example.com/feed.ics');
 
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(syncUrl($source->id))
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(syncUrl($source->id))
         ->assertUnprocessable()
         ->assertJsonPath('error.code', 'URL_NOT_ALLOWED');
 
@@ -100,8 +101,8 @@ it('returns 422 INVALID_ICAL when the url does not return a calendar', function 
     Http::fake(['calendar.example.com/*' => Http::response('<html>Not a calendar</html>')]);
     $source = urlSource();
 
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(syncUrl($source->id))
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(syncUrl($source->id))
         ->assertUnprocessable()
         ->assertJsonPath('error.code', 'INVALID_ICAL');
 
@@ -113,8 +114,8 @@ it('returns 422 SOURCE_NOT_SYNCABLE for file and inactive sources', function (ar
     $source = urlSource();
     $source->update($attributes);
 
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(syncUrl($source->id))
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(syncUrl($source->id))
         ->assertUnprocessable()
         ->assertJsonPath('error.code', 'SOURCE_NOT_SYNCABLE');
 
@@ -129,8 +130,8 @@ it('returns 403 for a service provider without syncing', function () {
     Http::fake();
     $source = urlSource();
 
-    $this->actingAs(userWithRole('service_provider'), 'sanctum')
-        ->postJson(syncUrl($source->id))
+    authenticateApiUser(userWithRole('service_provider'));
+    $this->postJson(syncUrl($source->id))
         ->assertForbidden();
 
     Http::assertNothingSent();
@@ -138,8 +139,8 @@ it('returns 403 for a service provider without syncing', function () {
 });
 
 it('returns 404 for a source that does not exist', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(syncUrl(999))
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(syncUrl(999))
         ->assertNotFound();
 });
 
@@ -156,8 +157,8 @@ it('returns 409 SYNC_IN_PROGRESS while the source is being synced', function () 
     $source = urlSource();
     Cache::lock(IcalSyncService::lockKey($source->id), 60)->get();
 
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(syncUrl($source->id))
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(syncUrl($source->id))
         ->assertStatus(409)
         ->assertJsonPath('error.code', 'SYNC_IN_PROGRESS');
 

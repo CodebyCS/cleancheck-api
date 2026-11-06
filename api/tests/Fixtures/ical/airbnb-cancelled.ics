@@ -1,0 +1,25 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//CleanCheck//Fixture Airbnb Cancelamento//PT
+CALSCALE:GREGORIAN
+X-WR-CALNAME:Airbnb (ficticio - sem a reserva 0002)
+BEGIN:VEVENT
+UID:fict-0001@cleancheck.test
+DTSTAMP:20260928T120000Z
+DTSTART;VALUE=DATE:20261010
+DTEND;VALUE=DATE:20261014
+SUMMARY:Reserved
+DESCRIPTION:Reservation URL: https://www.airbnb.com/hosting/reservations/de
+ tails/HMFICT0001\nPhone Number (Last 4 Digits): 1234
+END:VEVENT
+BEGIN:VEVENT
+UID:fict-0004@cleancheck.test
+DTSTAMP:20260928T120000Z
+DTSTART;VALUE=DATE:20261102
+DTEND;VALUE=DATE:20261105
+SEQUENCE:1
+SUMMARY:Reserved
+DESCRIPTION:Reservation URL: https://www.airbnb.com/hosting/reservations/de
+ tails/HMFICT0004\nPhone Number (Last 4 Digits): 9012
+END:VEVENT
+END:VCALENDAR

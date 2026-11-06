@@ -6,7 +6,11 @@ namespace App\Modules\Reservations\Services;
 
 use App\Modules\Reservations\DTO\ImportResult;
 use App\Modules\Reservations\DTO\ParseResult;
+use App\Modules\Reservations\DTO\ParseWarning;
+use App\Modules\Reservations\DTO\ReservationEvent;
+use App\Modules\Reservations\Enums\IcalWarningCode;
 use App\Modules\Reservations\Enums\ReservationStatus;
+use App\Modules\Reservations\Events\BookingCancelled;
 use App\Modules\Reservations\Events\BookingImported;
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Reservations\Models\BookingSource;
@@ -44,10 +48,14 @@ final class BookingImportService
         ]);
     }
 
-    public function importInto(BookingSource $source, SyncRun $syncRun, ParseResult $result): ImportResult
-    {
+    public function importInto(
+        BookingSource $source,
+        SyncRun $syncRun,
+        ParseResult $result,
+        bool $cancelMissing = false,
+    ): ImportResult {
         try {
-            $importResult = DB::transaction(fn () => $this->persist($source, $result));
+            $importResult = DB::transaction(fn () => $this->persist($source, $result, $cancelMissing));
         } catch (Throwable $e) {
             $this->failRun($syncRun, $e);
 
@@ -58,6 +66,7 @@ final class BookingImportService
             'status' => 'success',
             'finished_at' => now(),
             'created_count' => count($importResult->created),
+            'cancelled_count' => count($importResult->cancelled),
         ]);
 
         // Existing bookings are announced too, so a reimport recovers any task that failed before.
@@ -65,9 +74,14 @@ final class BookingImportService
             BookingImported::dispatch($booking->id);
         }
 
+        foreach ($importResult->cancelled as $booking) {
+            BookingCancelled::dispatch($booking->id);
+        }
+
         return $importResult;
     }
-    private function persist(BookingSource $source, ParseResult $result): ImportResult
+
+    private function persist(BookingSource $source, ParseResult $result, bool $cancelMissing): ImportResult
     {
         $created = [];
         $existing = [];
@@ -106,6 +120,47 @@ final class BookingImportService
             }
         }
 
-        return new ImportResult($created, $existing, $ambiguous, $skipped, $result->warnings);
+        $cancelled = $cancelMissing ? $this->cancelMissing($source, $result) : [];
+
+        return new ImportResult($created, $existing, $ambiguous, $skipped, $result->warnings, $cancelled);
+    }
+
+    /** @return Booking[] */
+    private function cancelMissing(BookingSource $source, ParseResult $result): array
+    {
+        // An empty feed or an event without UID may be an incomplete read: cancel nothing.
+        if ($result->events === [] || $this->hasEventWithoutUid($result)) {
+            return [];
+        }
+
+        // A UID counts as present even when its event was ignored with a warning.
+        $presentUids = array_merge(
+            array_map(fn (ReservationEvent $event) => $event->externalUid, $result->events),
+            array_filter(array_map(fn (ParseWarning $warning) => $warning->uid, $result->warnings)),
+        );
+
+        // Past stays leave the Airbnb feed on their own, so only future check-outs are cancelled.
+        $bookings = Booking::where('booking_source_id', $source->id)
+            ->where('status', ReservationStatus::Reserved)
+            ->whereNotIn('external_uid', $presentUids)
+            ->whereDate('source_check_out_at', '>', today())
+            ->get();
+
+        foreach ($bookings as $booking) {
+            $booking->update(['status' => ReservationStatus::Cancelled]);
+        }
+
+        return $bookings->all();
+    }
+
+    private function hasEventWithoutUid(ParseResult $result): bool
+    {
+        foreach ($result->warnings as $warning) {
+            if ($warning->code === IcalWarningCode::MissingUid) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

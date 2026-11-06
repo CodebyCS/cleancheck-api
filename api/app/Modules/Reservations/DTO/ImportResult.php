@@ -14,6 +14,7 @@ final readonly class ImportResult
      * @param ReservationEvent[] $ambiguous
      * @param ReservationEvent[] $skipped
      * @param ParseWarning[] $warnings
+     * @param Booking[] $cancelled
      */
     public function __construct(
         public array $created = [],
@@ -21,6 +22,7 @@ final readonly class ImportResult
         public array $ambiguous = [],
         public array $skipped = [],
         public array $warnings = [],
+        public array $cancelled = [],
     ) {
     }
 }

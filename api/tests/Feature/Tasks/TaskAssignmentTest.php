@@ -43,8 +43,8 @@ it('allows an administrator or supervisor to assign an active provider to a pend
     $provider = assignmentProvider();
     $task = assignmentTask();
 
-    $this->actingAs(userWithRole($role), 'sanctum')
-        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])
+    authenticateApiUser(userWithRole($role));
+    $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])
         ->assertOk()->assertJsonPath('service_provider_id', $provider->id);
     expect($task->fresh()->serviceProvider->id)->toBe($provider->id)
         ->and($task->fresh()->property->id)->toBe($task->property_id);
@@ -54,8 +54,8 @@ it('rejects assignment by a provider or an unauthenticated user', function () {
     $provider = assignmentProvider();
     $task = assignmentTask();
     $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])->assertUnauthorized();
-    $this->actingAs(userWithRole('service_provider'), 'sanctum')
-        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])->assertForbidden();
+    authenticateApiUser(userWithRole('service_provider'));
+    $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])->assertForbidden();
     expect($task->fresh()->service_provider_id)->toBeNull();
 });
 
@@ -73,8 +73,8 @@ it('rejects nonexistent or inactive providers without editing other fields', fun
 it('rejects a first assignment when the task is not pending', function (string $status) {
     $provider = assignmentProvider();
     $task = assignmentTask($status);
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])
+    authenticateApiUser(userWithRole('admin'));
+    $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])
         ->assertUnprocessable();
     expect($task->fresh()->service_provider_id)->toBeNull();
 })->with(['in_progress', 'completed', 'cancelled']);
@@ -104,8 +104,8 @@ it('allows reassignment in non-completed states', function (string $status) {
     $old = assignmentProvider();
     $new = assignmentProvider();
     $task = assignmentTask($status, $old->id);
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $new->id])->assertOk();
+    authenticateApiUser(userWithRole('admin'));
+    $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $new->id])->assertOk();
     expect($task->fresh()->service_provider_id)->toBe($new->id)
         ->and($task->assignmentHistory()->count())->toBe(1);
 })->with(['pending', 'in_progress', 'cancelled']);
@@ -126,8 +126,8 @@ it('does not add history or change the task when the same provider is sent', fun
     $provider = assignmentProvider();
     $task = assignmentTask('completed', $provider->id);
     $originalUpdatedAt = $task->updated_at;
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])->assertOk();
+    authenticateApiUser(userWithRole('admin'));
+    $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $provider->id])->assertOk();
     expect($task->assignmentHistory()->count())->toBe(0)
         ->and($task->fresh()->updated_at->equalTo($originalUpdatedAt))->toBeTrue();
 });
@@ -135,8 +135,8 @@ it('does not add history or change the task when the same provider is sent', fun
 it('rejects removing a provider from a pending task without changing its history', function () {
     $provider = assignmentProvider();
     $task = assignmentTask('pending', $provider->id);
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => null])
+    authenticateApiUser(userWithRole('admin'));
+    $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => null])
         ->assertUnprocessable()->assertJsonValidationErrors('service_provider_id');
     expect($task->fresh()->service_provider_id)->toBe($provider->id)
         ->and($task->assignmentHistory()->count())->toBe(0);
@@ -165,24 +165,29 @@ it('changes task access between providers after reassignment and preserves histo
     $b = assignmentProvider();
     $task = assignmentTask();
     $admin = userWithRole('admin');
-    $this->actingAs($admin, 'sanctum')
-        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $a->id])->assertOk();
+    authenticateApiUser($admin);
+    $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $a->id])->assertOk();
 
-    $this->actingAs($a->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
+    authenticateApiUser($a->user);
+    $this->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
     $this->getJson("/api/tasks/{$task->id}")->assertOk()->assertJsonPath('id', $task->id);
-    $this->actingAs($b->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+    authenticateApiUser($b->user);
+    $this->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
     $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
 
-    $this->actingAs($admin, 'sanctum')
-        ->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $b->id])->assertOk();
-    $this->actingAs($a->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+    authenticateApiUser($admin);
+    $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $b->id])->assertOk();
+    authenticateApiUser($a->user);
+    $this->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
     $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
-    $this->actingAs($b->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
+    authenticateApiUser($b->user);
+    $this->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
     $this->getJson("/api/tasks/{$task->id}")->assertOk()->assertJsonPath('id', $task->id);
     expect($task->assignmentHistory()->count())->toBe(2)
         ->and($task->assignmentHistory()->orderBy('id')->first()->new_service_provider_id)->toBe($a->id);
 
-    $this->actingAs($admin, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
+    authenticateApiUser($admin);
+    $this->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
     $this->getJson("/api/tasks/{$task->id}")->assertOk();
 });
 
@@ -190,7 +195,8 @@ it('denies task access without authentication or without a provider record', fun
     $task = assignmentTask();
     $this->getJson('/api/tasks')->assertUnauthorized();
     $this->getJson("/api/tasks/{$task->id}")->assertUnauthorized();
-    $this->actingAs(userWithRole('service_provider'), 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+    authenticateApiUser(userWithRole('service_provider'));
+    $this->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
     $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
 });
 
@@ -209,7 +215,8 @@ it('hides deleted tasks and rejects inactive accounts', function () {
     $provider = assignmentProvider();
     $task = assignmentTask('pending', $provider->id);
     $task->delete();
-    $this->actingAs($provider->user, 'sanctum')->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+    authenticateApiUser($provider->user);
+    $this->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
     $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
     $provider->user->is_active = false;
     $provider->user->save();
