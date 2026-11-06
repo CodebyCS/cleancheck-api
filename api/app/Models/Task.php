@@ -30,6 +30,7 @@ class Task extends Model
         'completed_by_user_id',
         'agreed_amount',
         'notes',
+        'provider_notes',
     ];
 
     // Cast for date treatament from the database
