@@ -121,3 +121,14 @@ function authenticateApiUser(
 
     return $user;
 }
+
+function feedSequence(string ...$fixtures): void
+{
+    $sequence = \Illuminate\Support\Facades\Http::sequence();
+
+    foreach ($fixtures as $fixture) {
+        $sequence->push(icalFixture($fixture));
+    }
+
+    \Illuminate\Support\Facades\Http::fake(['calendar.example.com/*' => $sequence]);
+}
