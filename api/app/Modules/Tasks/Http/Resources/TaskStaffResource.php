@@ -22,6 +22,8 @@ class TaskStaffResource extends JsonResource
             'service_provider' => $this->serviceProvider?->user?->name,
             'agreed_amount' => $this->agreed_amount,
             'status' => $this->status,
+            'notes' => $this->notes,
+            'provider_notes' => $this->provider_notes,
             'completed_at' => $this->completed_at,
             'completed_by' => $this->completedBy?->name,
             'deleted_at' => $this->deleted_at,
