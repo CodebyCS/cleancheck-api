@@ -38,7 +38,7 @@ class CreateManualTask
             ]);
         }
 
-        $schedule = $this->cleaningSchedule->calculate($type, $data->checkIn);
+        $schedule = $this->cleaningSchedule->calculate($type, $data->checkIn, null, $data->propertySchedule);
 
         return Task::create([
             'booking_id'         => $bookingId,
