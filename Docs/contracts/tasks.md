@@ -47,8 +47,8 @@ As respostas da API incluem `is_overdue` (booleano). É `true` quando a task est
 
 - Criada automaticamente, a partir de uma reserva.
 - O estado inicial é `pending`.
-- `scheduled_start_at`: 11:30 do dia do check-out.
-- `scheduled_end_at`: 14:30 do dia do próximo check-in da mesma propriedade. Se não existir próximo check-in conhecido, fica `null`.
+- `scheduled_start_at`: 11:30 do dia do check-out. Se a propriedade tiver hora de saída (`default_check_out_time`), 30 min depois dessa hora.
+- `scheduled_end_at`: 14:30 do dia do próximo check-in da mesma propriedade. Se a propriedade tiver hora de entrada (`default_check_in_time`), 30 min antes dessa hora. Se não existir próximo check-in conhecido, fica `null`.
 - O prestador de serviços e o valor acordado não são atribuídos na criação.
 - O check-in da própria reserva não é obrigatório para criar a limpeza.
 
@@ -57,14 +57,14 @@ As respostas da API incluem `is_overdue` (booleano). É `true` quando a task est
 - Criada manualmente pelo adm/supervisor, sempre associada a uma reserva (normalmente a seguinte).
 - O estado inicial é `pending`.
 - `scheduled_start_at`: o momento em que a task é criada.
-- `scheduled_end_at`: 14:30 do dia do check-in da reserva (prazo máximo).
+- `scheduled_end_at`: 14:30 do dia do check-in da reserva (prazo máximo), ou 30 min antes da hora de entrada da propriedade, se definida.
 - Só pode ser criada se esse prazo ainda não passou.
 - Se a janela terminar sem a task estar concluída, a task fica em atraso (`is_overdue`) até ser concluída.
 
 ### 3.3 Regras comuns
 
 - Não pode existir mais do que uma task do mesmo tipo para a mesma reserva (índice único `booking_id` + `type`, que inclui as tasks apagadas).
-- Os horários são fixos (11:30 e 14:30) e calculados em UTC, o fuso da aplicação.
+- Os horários seguem a precedência descrita em [`property-schedule.md`](property-schedule.md): o dia vem da reserva, a hora é 11:30/14:30, ou a da propriedade com 30 min de folga, se definida, e ambos são calculados no fuso da propriedade (`properties.timezone`). As datas são guardadas em UTC. Só o dia da reserva conta; a hora vem sempre da propriedade.
 - A propriedade da task é a propriedade da fonte da reserva.
 
 ## 4. Validações
@@ -78,7 +78,7 @@ Aplicadas sobre os dados da reserva antes de criar, atualizar ou restaurar:
 | Data de check-out válida | Sim | Não |
 | Data de check-in válida | Não | Sim |
 | Check-in anterior ao check-out (quando ambos existem) | Sim | Não |
-| O prazo (14:30 do check-in) não pode ter passado | Não | Sim |
+| O prazo (14:30, ou entrada da propriedade − 30 min, do dia do check-in) não pode ter passado | Não | Sim |
 
 ## 5. Ciclo de vida
 
@@ -185,8 +185,6 @@ Conclui uma task `in_progress`, mesmo que não esteja atribuída ao utilizador s
 
 Resposta `200` com o resource dentro de `data`. O sistema guarda o ID do autor em `completed_by_user_id` e devolve o nome em `completed_by`.
 
-A autorização por perfil nesta rota ficará a cargo do middleware de roles pendente.
-
 ### 6.2 Prestador
 
 Um utilizador sem registo de prestador recebe `403` em todas as rotas `/api/my/...`. O prestador só vê e age sobre as tasks atualmente atribuídas ao seu registo, e nunca vê o valor acordado nem o prestador atribuído. Uma reatribuição muda imediatamente o acesso na próxima consulta. Tasks apagadas ou canceladas não aparecem ao prestador.
@@ -234,20 +232,19 @@ Atualiza `provider_notes`, um campo separado das notas administrativas (`notes`)
 | `GET /api/tasks`, `GET /api/tasks/{id}`, `POST /api/tasks`, `PATCH`, `DELETE`, `cancel`, `restore` | `admin` e `supervisor` |
 | `GET /api/my/tasks`, `GET /api/my/tasks/{id}`, `start`, `complete` | `service_provider` |
 
-A verificação de perfil por rota será feita por um middleware de roles (a cargo de outro elemento da equipa). Até lá, algumas rotas ainda não verificam o perfil (ver secção 7).
+A verificação de perfil por rota é feita pelo middleware `role` nas rotas (ver secção 7).
 
 ## 7. Dependências e limitações
 
 - O funcionamento depende de reservas e propriedades válidas na base de dados.
-- **Autorização por perfil:** a integração do middleware de roles ainda está pendente. O teste de acesso à lista staff falha para prestadores, e o teste de cancelamento por prestador está skipped até o middleware ser aplicado. Não disponibilizar essas rotas no frontend antes dessa integração.
+- **Autorização por perfil:** as rotas de gestão (`/tasks...`) exigem `admin` ou `supervisor`; as `/my/tasks/*` e os impedimentos exigem `service_provider` (middleware `role`). Um perfil sem permissão recebe `403`.
 - **Formato das respostas:** listagem, detalhe e endpoints de escrita que devolvem uma tarefa usam Resources com envelope `data`. Cancelamento e remoção respondem `204`, sem corpo.
-- Os horários por defeito, `responsible_service_provider_id` e `base_cleaning_amount` ainda não são usados pelas Tasks. `access_instructions` já é devolvido no resource do prestador.
+- `responsible_service_provider_id` e `base_cleaning_amount` ainda não são usados pelas Tasks. `access_instructions` já é devolvido no resource do prestador.
 - A desativação de uma propriedade já cancela e apaga logicamente as tasks `pending` elegíveis. O bloqueio da desativação de um prestador com tarefas abertas ainda aguarda a integração de `ProviderOpenTasks` pelo módulo Properties.
 - A limpeza da reserva anterior da mesma propriedade **não é recalculada** quando um check-in entra, muda ou sai. O seu `scheduled_end_at` pode ficar desatualizado.
 - Pedidos simultâneos para criar a limpeza da mesma reserva: o índice único protege contra duplicados e o segundo pedido devolve a task já criada.
 - Reservas que não estejam `reserved` (por exemplo, canceladas) são tratadas como "reserva não encontrada" ao criar, atualizar ou restaurar.
 - A criação da limpeza corre numa fila (`QUEUE_CONNECTION=database`): é preciso um worker (`php artisan queue:work`) a correr.
-- Os campos da propriedade `default_check_in_time`, `default_check_out_time`, `responsible_service_provider_id`, `base_cleaning_amount` e `access_instructions` ainda não são usados pelas Tasks (os horários são fixos, a limpeza não é atribuída nem leva valor, e o prestador não vê as instruções de acesso).
 - Na inspeção restaurada, o início passa a ser o momento do restauro.
 
 ## 8. Integração com Reservations (Booking)
@@ -273,6 +270,7 @@ Um único ficheiro (`EloquentBookingDataProvider`) lê as tabelas `bookings` e `
 
 - `bookings`: `id`, `status`, `booking_source_id`, `source_check_in_at`, `source_check_out_at`, `overridden_check_in_at`, `overridden_check_out_at`
 - `booking_sources`: `property_id`
+- `properties`: `default_check_out_time`, `default_check_in_time`, `timezone`, lidas por `DatabasePropertyScheduleProvider` (sem usar o módulo Properties) e enviadas no `BookingSnapshot` como `PropertySchedule`
 
 As datas efetivas são as `overridden_*` quando existem e, caso contrário, as `source_*`. **Renomear estas colunas ou mudar o valor de `status` quebra o módulo Tasks**, por isso fazem parte do contrato entre os dois módulos. O próximo check-in é a reserva ativa mais próxima da mesma propriedade com check-in na data do check-out ou depois dela.
 
@@ -292,7 +290,7 @@ O Booking emite `BookingImported` e o listener chama:
 $action->execute(bookingId: 12);
 ```
 
-A Task lê a reserva 12. Com check-out a 20/10/2026 e próximo check-in da mesma propriedade a 22/10/2026, resulta:
+A Task lê a reserva 12. Com check-out a 20/10/2026, próximo check-in da mesma propriedade a 22/10/2026 e uma propriedade sem horas de referência, resulta:
 
 - `booking_id`: `12`
 - `property_id`: o da reserva
@@ -371,7 +369,6 @@ O prestador não recebe `booking_id`, `service_provider`, `service_provider_id` 
 
 | Responsável | Pendência |
 |---|---|
-| Identity/Auth | Aplicar o middleware de roles nas rotas Tasks: `admin`/`supervisor` em `/api/tasks` e `service_provider` em `/api/my/tasks`. Depois, corrigir o teste de acesso à lista staff e reativar o teste de cancelamento que está skipped. |
 | Reservations | Emitir eventos após o commit para reservas atualizadas, canceladas e removidas, e ligar esses eventos às Actions de Tasks já existentes. |
 | Properties | Usar `ProviderOpenTasks` no fluxo de desativação de prestadores para verificar se existem tarefas abertas. O contrato e a implementação Eloquent já existem; falta integrá-los no fluxo de Properties. |
 
@@ -382,5 +379,4 @@ Estes lembretes correspondem aos comentários `TODO` nas rotas e no `AppServiceP
 - Notas do prestador com autoria/histórico, checklist e anexos de evidência. A tarefa continua podendo ser concluída sem foto ou vídeo; media é opcional.
 - Indicador de falta de media, se o frontend vier a precisar dele.
 - Recalcular a limpeza da reserva anterior quando o check-in seguinte mudar.
-- Considerar o fuso horário da propriedade e os horários configuráveis do imóvel.
 - Integrar listagem, detalhe e execução das tarefas na interface web/mobile.
