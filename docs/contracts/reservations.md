@@ -126,6 +126,7 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
     }
   ],
   "existing": [],
+  "cancelled": [],
   "ambiguous": [
     {
       "externalUid": "fict-inv-0006@cleancheck.test",
@@ -153,21 +154,21 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
 - A fonte (tipo `file`) é identificada pelo imóvel + canal e é reutilizada entre importações.
 - Cada importação fica registada em `sync_runs` (ver "Registo de tentativas").
 - As reservas são gravadas numa só transação: se a gravação falhar, nada desta importação fica gravado e os dados anteriores mantêm-se.
+- A importação por ficheiro **nunca cancela** reservas: `cancelled` vem sempre vazio. Ver "Cancelamentos" nas Fontes URL.
 
 ---
 
-## Evento `BookingImported`
+## Evento `BookingCancelled`
 
-`App\Modules\Reservations\Events\BookingImported`
+`App\Modules\Reservations\Events\BookingCancelled`
 
 | Propriedade | Tipo |
 |---|---|
 | `bookingId` | `int` |
 
-- Disparado uma vez por reserva `created` e `existing`, depois de a importação terminar com sucesso.
-- Não é disparado se a importação falhar.
-- As reservas `existing` são anunciadas em cada importação: reimportar o ficheiro permite recuperar uma tarefa que não foi criada.
-- A criação de tarefas é feita por quem ouve o evento (módulo Tasks) e não altera a resposta da importação.
+- Disparado uma vez por reserva em `cancelled`, depois de a sincronização terminar com sucesso.
+- Nunca é disparado duas vezes para a mesma reserva: só reservas `reserved` podem ser canceladas.
+- Remover ou manter as tarefas da reserva é decisão de quem ouve o evento (módulo Tasks).
 
 ---
 
@@ -216,8 +217,8 @@ Conta ativa com perfil `admin` ou `supervisor` · JSON. Perfil sem permissão (`
 
 Descarrega o calendário agora e importa as reservas.
 
-- Resposta `200` no mesmo formato da Importação (`created`, `existing`, `ambiguous`, `skipped`, `warnings`).
-- Aplicam-se as mesmas regras: "Destino de cada evento" e evento `BookingImported`.
+- Resposta `200` no mesmo formato da Importação (`created`, `existing`, `cancelled`, `ambiguous`, `skipped`, `warnings`).
+- Aplicam-se as mesmas regras: "Destino de cada evento", "Cancelamentos" e eventos `BookingImported` / `BookingCancelled`.
 - Sincronizar o mesmo calendário outra vez não cria duplicados: as reservas aparecem em `existing`.
 
 | Estado | Código | Quando |
@@ -242,10 +243,27 @@ As mensagens de erro indicam o servidor, nunca o URL completo.
 | Tempo | 5 s para ligar, 15 s no total |
 | Tamanho | Máximo 2 MB |
 
+### Cancelamentos
+
+Uma reserva da fonte passa a `cancelled` (e aparece em `cancelled`) quando **todas** estas condições se verificam:
+
+| Condição | Motivo |
+|---|---|
+| A sincronização é de uma fonte URL | Um ficheiro carregado à mão pode ser uma exportação antiga |
+| O download e a leitura correram bem | Uma falha nunca cancela reservas |
+| O calendário tem pelo menos um evento | Um calendário vazio pode ser uma falha da origem |
+| Nenhum evento está sem `UID` | Um evento sem `UID` torna a leitura incompleta |
+| O `externalUid` não aparece no calendário, nem num evento nem num aviso | Uma reserva com dados inválidos continua a estar no calendário |
+| A reserva está `reserved` | Não se cancela duas vezes |
+| O check-out recebido é depois de hoje | O Airbnb retira do calendário as estadias passadas |
+
+- Os cancelamentos são gravados na mesma transação que as reservas.
+- Uma reserva cancelada que volte a aparecer no calendário continua `cancelled` e é listada em `existing`.
+
 ### Registo de tentativas (`sync_runs`)
 
 - Cada sincronização (manual ou automática) cria uma linha **antes** do download: `running` → `success` ou `failed`.
-- `success` grava `created_count`. `failed` grava `error_message`.
+- `success` grava `created_count` e `cancelled_count`. `failed` grava `error_message`.
 - Uma sincronização falhada não altera as reservas já gravadas e não dispara eventos.
 - A mesma fonte nunca é sincronizada duas vezes ao mesmo tempo. Uma tentativa recusada por isso (`409`) não cria linha.
 

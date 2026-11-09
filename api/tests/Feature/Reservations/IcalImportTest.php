@@ -17,8 +17,8 @@ beforeEach(function () {
 });
 
 it('imports a valid file and lists the created bookings', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_IMPORT_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_IMPORT_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
             'property_id' => $this->propertyId,
         ], ['Accept' => 'application/json'])
@@ -40,12 +40,12 @@ it('reports existing bookings when the same file is imported again', function ()
     $user = userWithRole('supervisor');
     $payload = fn () => ['file' => icalUpload('airbnb-valid.ics'), 'property_id' => $this->propertyId];
 
-    $this->actingAs($user, 'sanctum')
-        ->post(ICAL_IMPORT_URL, $payload(), ['Accept' => 'application/json'])
+    authenticateApiUser($user);
+    $this->post(ICAL_IMPORT_URL, $payload(), ['Accept' => 'application/json'])
         ->assertOk();
 
-    $this->actingAs($user, 'sanctum')
-        ->post(ICAL_IMPORT_URL, $payload(), ['Accept' => 'application/json'])
+    authenticateApiUser($user);
+    $this->post(ICAL_IMPORT_URL, $payload(), ['Accept' => 'application/json'])
         ->assertOk()
         ->assertJsonCount(0, 'created')
         ->assertJsonCount(3, 'existing');
@@ -54,8 +54,8 @@ it('reports existing bookings when the same file is imported again', function ()
 });
 
 it('lists ambiguous events and warnings without saving them', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_IMPORT_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_IMPORT_URL, [
             'file' => icalUpload('airbnb-invalid.ics'),
             'property_id' => $this->propertyId,
         ], ['Accept' => 'application/json'])
@@ -69,8 +69,8 @@ it('lists ambiguous events and warnings without saving them', function () {
 });
 
 it('returns 422, saves nothing and dispatches no events for an invalid file', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_IMPORT_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_IMPORT_URL, [
             'file' => icalUpload('airbnb-not-vcalendar.ics'),
             'property_id' => $this->propertyId,
         ], ['Accept' => 'application/json'])
@@ -91,8 +91,8 @@ it('returns 401 without authentication', function () {
 });
 
 it('returns 403, saves nothing and dispatches no events for a service provider', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum')
-        ->post(ICAL_IMPORT_URL, [
+    authenticateApiUser(userWithRole('service_provider'));
+    $this->post(ICAL_IMPORT_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
             'property_id' => $this->propertyId,
         ], ['Accept' => 'application/json'])
