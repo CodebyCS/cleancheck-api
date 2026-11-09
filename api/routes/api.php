@@ -9,6 +9,7 @@ use App\Modules\Properties\Http\Controllers\ServiceProviderPhotoController;
 use App\Modules\Reservations\Http\Controllers\IcalImportController;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
 use App\Modules\Reservations\Http\Controllers\BookingSourceController;
+use App\Modules\Reservations\Http\Controllers\BookingController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
 use App\Modules\Tasks\Http\Controllers\TaskImpedimentController;
 use Illuminate\Http\JsonResponse;
@@ -64,7 +65,11 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::post('/reservations/ical/read', IcalReadController::class);
         Route::post('/reservations/ical/import', IcalImportController::class);
 
-        
+        // Bookings
+        Route::get('/properties/{property}/bookings', [BookingController::class, 'index'])
+            ->whereNumber('property');
+        Route::patch('/bookings/{booking}/schedule', [BookingController::class, 'updateSchedule'])
+            ->whereNumber('booking');
     });
 
 
