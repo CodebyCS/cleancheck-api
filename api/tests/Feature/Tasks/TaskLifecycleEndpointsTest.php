@@ -128,7 +128,7 @@ it('forbids a service provider from cancelling a task', function () {
         ->assertForbidden();
 
     expect($task->fresh()->status)->toBe('pending');
-})
+});
 
 // ---------------------------------------------------------------------------
 // DELETE /api/tasks/{id}
