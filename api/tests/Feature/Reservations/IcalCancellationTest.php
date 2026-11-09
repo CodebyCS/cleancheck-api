@@ -20,17 +20,6 @@ uses(RefreshDatabase::class);
 
 const CANCELLED_UID = 'fict-0002@cleancheck.test';
 
-function feedSequence(string ...$fixtures): void
-{
-    $sequence = Http::sequence();
-
-    foreach ($fixtures as $fixture) {
-        $sequence->push(icalFixture($fixture));
-    }
-
-    Http::fake(['calendar.example.com/*' => $sequence]);
-}
-
 function bookingStatus(string $externalUid): ReservationStatus
 {
     return Booking::where('external_uid', $externalUid)->sole()->status;

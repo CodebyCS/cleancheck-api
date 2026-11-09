@@ -11,6 +11,7 @@ use App\Modules\Reservations\DTO\ReservationEvent;
 use App\Modules\Reservations\Enums\IcalWarningCode;
 use App\Modules\Reservations\Enums\ReservationStatus;
 use App\Modules\Reservations\Events\BookingCancelled;
+use App\Modules\Reservations\Events\BookingUpdated;
 use App\Modules\Reservations\Events\BookingImported;
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Reservations\Models\BookingSource;
@@ -52,10 +53,10 @@ final class BookingImportService
         BookingSource $source,
         SyncRun $syncRun,
         ParseResult $result,
-        bool $cancelMissing = false,
+        bool $liveFeed = false,
     ): ImportResult {
         try {
-            $importResult = DB::transaction(fn () => $this->persist($source, $result, $cancelMissing));
+            $importResult = DB::transaction(fn () => $this->persist($source, $result, $liveFeed));
         } catch (Throwable $e) {
             $this->failRun($syncRun, $e);
 
@@ -66,12 +67,17 @@ final class BookingImportService
             'status' => 'success',
             'finished_at' => now(),
             'created_count' => count($importResult->created),
+            'updated_count' => count($importResult->updated),
             'cancelled_count' => count($importResult->cancelled),
         ]);
 
         // Existing bookings are announced too, so a reimport recovers any task that failed before.
         foreach (array_merge($importResult->created, $importResult->existing) as $booking) {
             BookingImported::dispatch($booking->id);
+        }
+
+        foreach ($importResult->updated as $booking) {
+            BookingUpdated::dispatch($booking->id);
         }
 
         foreach ($importResult->cancelled as $booking) {
@@ -81,10 +87,11 @@ final class BookingImportService
         return $importResult;
     }
 
-    private function persist(BookingSource $source, ParseResult $result, bool $cancelMissing): ImportResult
+     private function persist(BookingSource $source, ParseResult $result, bool $liveFeed): ImportResult
     {
         $created = [];
         $existing = [];
+        $updated = [];
         $ambiguous = [];
         $skipped = [];
 
@@ -115,14 +122,28 @@ final class BookingImportService
 
             if ($booking->wasRecentlyCreated) {
                 $created[] = $booking;
+            } elseif ($liveFeed && $this->sourceDatesChanged($booking, $event)) {
+                // Only the received dates change; a local adjustment (overridden_*) is kept.
+                $booking->update([
+                    'source_check_in_at' => $event->checkIn,
+                    'source_check_out_at' => $event->checkOut,
+                ]);
+                $updated[] = $booking;
             } else {
                 $existing[] = $booking;
             }
         }
 
-        $cancelled = $cancelMissing ? $this->cancelMissing($source, $result) : [];
+        $cancelled = $liveFeed ? $this->cancelMissing($source, $result) : [];
 
-        return new ImportResult($created, $existing, $ambiguous, $skipped, $result->warnings, $cancelled);
+        return new ImportResult($created, $existing, $ambiguous, $skipped, $result->warnings, $cancelled, $updated);
+    }
+
+    private function sourceDatesChanged(Booking $booking, ReservationEvent $event): bool
+    {
+        return $booking->status === ReservationStatus::Reserved
+            && ($booking->source_check_in_at->format('Y-m-d') !== $event->checkIn->format('Y-m-d')
+                || $booking->source_check_out_at->format('Y-m-d') !== $event->checkOut->format('Y-m-d'));
     }
 
     /** @return Booking[] */

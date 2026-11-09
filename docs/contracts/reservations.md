@@ -126,6 +126,7 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
     }
   ],
   "existing": [],
+  "updated": [],
   "cancelled": [],
   "ambiguous": [
     {
@@ -146,7 +147,8 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
 | Evento | Gravado? | Lista |
 |---|---|---|
 | `reserved`, novo | Sim | `created` |
-| `reserved`, já importado (mesma fonte + `externalUid`) | Não é alterado | `existing` |
+| `reserved`, já importado (mesma fonte + `externalUid`), com as mesmas datas | Não é alterado | `existing` |
+| `reserved`, já importado, com datas diferentes (só fontes URL) | Datas recebidas atualizadas; o ajuste local mantém-se | `updated` |
 | `unknown` | Não | `ambiguous` |
 | `blocked` | Não | `skipped` |
 | Inválido (ver avisos) | Não | `warnings` |
@@ -154,7 +156,40 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
 - A fonte (tipo `file`) é identificada pelo imóvel + canal e é reutilizada entre importações.
 - Cada importação fica registada em `sync_runs` (ver "Registo de tentativas").
 - As reservas são gravadas numa só transação: se a gravação falhar, nada desta importação fica gravado e os dados anteriores mantêm-se.
-- A importação por ficheiro **nunca cancela** reservas: `cancelled` vem sempre vazio. Ver "Cancelamentos" nas Fontes URL.
+- A importação por ficheiro **nunca cancela nem atualiza** reservas: uma reserva já importada vai sempre para `existing`, e `cancelled` e `updated` vêm sempre vazios. Ver "Cancelamentos" e "Alterações" nas Fontes URL.
+
+---
+
+## Evento `BookingCancelled`
+
+`App\Modules\Reservations\Events\BookingCancelled`
+
+| Propriedade | Tipo |
+|---|---|
+| `bookingId` | `int` |
+
+- Disparado uma vez por reserva `created` e `existing`, depois de a importação terminar com sucesso.
+- Não é disparado se a importação falhar.
+- As reservas `existing` são anunciadas em cada importação: reimportar o ficheiro permite recuperar uma tarefa que não foi criada.
+- As reservas `updated` recebem `BookingUpdated` em vez deste evento.
+- A criação de tarefas é feita por quem ouve o evento (módulo Tasks) e não altera a resposta da importação.
+
+---
+
+## Evento `BookingUpdated`
+
+`App\Modules\Reservations\Events\BookingUpdated`
+
+| Propriedade | Tipo |
+|---|---|
+| `bookingId` | `int` |
+
+Disparado depois de gravar, uma vez por reserva, quando as datas efetivas podem ter mudado:
+
+- numa sincronização URL, quando as datas recebidas do Airbnb mudam (reserva em `updated`);
+- quando o ajuste local é alterado (`PATCH /api/bookings/{booking}/schedule`). Enviar o mesmo ajuste outra vez não dispara.
+
+Quem ouve deve reler a reserva: as datas efetivas são `overridden_*` quando existem e, caso contrário, `source_*`.
 
 ---
 
@@ -169,6 +204,57 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
 - Disparado uma vez por reserva em `cancelled`, depois de a sincronização terminar com sucesso.
 - Nunca é disparado duas vezes para a mesma reserva: só reservas `reserved` podem ser canceladas.
 - Remover ou manter as tarefas da reserva é decisão de quem ouve o evento (módulo Tasks).
+
+---
+
+## Reservas
+
+Conta ativa com perfil `admin` ou `supervisor` (grupo `role:admin,supervisor`) · JSON. Perfil sem permissão → `403`. Sem autenticação → `401`.
+
+### Listar
+
+`GET /api/properties/{property}/bookings`
+
+```json
+{
+  "data": [
+    {
+      "id": 4,
+      "propertyId": 1,
+      "bookingSourceId": 2,
+      "externalUid": "fict-0004@cleancheck.test",
+      "status": "reserved",
+      "source": { "checkIn": "2026-11-02", "checkOut": "2026-11-05" },
+      "overridden": { "checkIn": null, "checkOut": "2026-11-07" },
+      "effective": { "checkIn": "2026-11-02", "checkOut": "2026-11-07" }
+    }
+  ]
+}
+```
+
+- Inclui reservas de todas as fontes do imóvel, em qualquer estado, ordenadas pelo check-in recebido.
+- `source`: datas recebidas. `overridden`: ajuste local ou `null`. `effective`: o ajuste quando existe, senão o recebido (são as datas que as tarefas usam).
+
+### Ajustar datas
+
+`PATCH /api/bookings/{booking}/schedule`
+
+```json
+{ "check_in": null, "check_out": "2026-11-07" }
+```
+
+| Campo | Regra |
+|---|---|
+| `check_in` | Obrigatório no pedido · `YYYY-MM-DD` ou `null` |
+| `check_out` | Obrigatório no pedido · `YYYY-MM-DD` ou `null` |
+
+- `null` usa a data recebida. Os dois a `null` limpam o ajuste.
+- O check-out efetivo tem de ser depois do check-in efetivo.
+- Só reservas `reserved` podem ser ajustadas.
+- O ajuste muda só o dia. A hora das tarefas vem da propriedade (ver `Docs/contracts/property-schedule.md`).
+- O ajuste nunca é alterado pela sincronização e não é enviado para o Airbnb.
+- Resposta `200` com a reserva em `data`, no formato da listagem.
+- Erros → `422` no formato de validação do Laravel, no campo `check_in`, `check_out` ou `booking` (reserva não ativa). Reserva inexistente → `404`.
 
 ---
 
@@ -217,8 +303,8 @@ Conta ativa com perfil `admin` ou `supervisor` · JSON. Perfil sem permissão (`
 
 Descarrega o calendário agora e importa as reservas.
 
-- Resposta `200` no mesmo formato da Importação (`created`, `existing`, `cancelled`, `ambiguous`, `skipped`, `warnings`).
-- Aplicam-se as mesmas regras: "Destino de cada evento", "Cancelamentos" e eventos `BookingImported` / `BookingCancelled`.
+- Resposta `200` no mesmo formato da Importação (`created`, `existing`, `updated`, `cancelled`, `ambiguous`, `skipped`, `warnings`).
+- Aplicam-se as mesmas regras: "Destino de cada evento", "Alterações", "Cancelamentos" e os eventos `BookingImported` / `BookingUpdated` / `BookingCancelled`.
 - Sincronizar o mesmo calendário outra vez não cria duplicados: as reservas aparecem em `existing`.
 
 | Estado | Código | Quando |
@@ -243,6 +329,12 @@ As mensagens de erro indicam o servidor, nunca o URL completo.
 | Tempo | 5 s para ligar, 15 s no total |
 | Tamanho | Máximo 2 MB |
 
+### Alterações
+
+- Numa sincronização URL, uma reserva `reserved` cujo check-in ou check-out recebido mudou fica com as datas novas em `source_*` e aparece em `updated`.
+- O ajuste local (`overridden_*`) nunca é alterado pela sincronização.
+- Reservas `cancelled` não são atualizadas.
+
 ### Cancelamentos
 
 Uma reserva da fonte passa a `cancelled` (e aparece em `cancelled`) quando **todas** estas condições se verificam:
@@ -263,7 +355,7 @@ Uma reserva da fonte passa a `cancelled` (e aparece em `cancelled`) quando **tod
 ### Registo de tentativas (`sync_runs`)
 
 - Cada sincronização (manual ou automática) cria uma linha **antes** do download: `running` → `success` ou `failed`.
-- `success` grava `created_count` e `cancelled_count`. `failed` grava `error_message`.
+- `success` grava `created_count`, `updated_count` e `cancelled_count`. `failed` grava `error_message`.
 - Uma sincronização falhada não altera as reservas já gravadas e não dispara eventos.
 - A mesma fonte nunca é sincronizada duas vezes ao mesmo tempo. Uma tentativa recusada por isso (`409`) não cria linha.
 
@@ -281,11 +373,6 @@ Para correr:
 | Desenvolvimento | `php artisan schedule:work` | `php artisan queue:work` |
 | Servidor | cron `* * * * * php artisan schedule:run` | `php artisan queue:work` (supervisionado) |
 
-### Fora de âmbito (próximas issues)
-
-- Reservas que desaparecem do calendário não são canceladas (#35).
-- Reservas já importadas não são atualizadas se as datas mudarem no Airbnb.
-
 ### Reproduzir localmente
 
 1. MySQL ligado, `php artisan migrate`, API com `php artisan serve`, web com `npm run dev`. Entrar como supervisor (contas no `DemoUserSeeder`).
@@ -293,5 +380,6 @@ Para correr:
 3. `GET /api/properties` para obter o id do imóvel.
 4. `POST /api/properties/{id}/booking-sources` com `{ "url": "<link>" }` → `201`.
 5. `POST /api/booking-sources/{id}/sync` → `200` com reservas em `created`. Repetir → as mesmas em `existing`.
-6. `php artisan reservations:sync --now` → sincroniza todas as fontes ativas. Ver as linhas em `sync_runs`.
-7. Sem link real: `php artisan test --filter=Sync` e `php artisan test --filter=IcalFetcher` cobrem o fluxo com respostas simuladas.
+6. `GET /api/properties/{id}/bookings` → reservas com datas recebidas e efetivas. `PATCH /api/bookings/{id}/schedule` com `{ "check_in": null, "check_out": "<data>" }` → o ajuste aparece em `overridden` e `effective`.
+7. `php artisan reservations:sync --now` → sincroniza todas as fontes ativas. Ver as linhas em `sync_runs`.
+8. Sem link real: `php artisan test --filter=Reservations` cobre o fluxo com respostas simuladas.

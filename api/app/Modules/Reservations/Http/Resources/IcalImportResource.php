@@ -33,7 +33,8 @@ final class IcalImportResource extends JsonResource
             'channel' => $this->channel,
             'created' => array_map(fn (Booking $booking) => $this->booking($booking), $result->created),
             'existing' => array_map(fn (Booking $booking) => $this->booking($booking), $result->existing),
-            'cancelled' => array_map(fn (Booking $booking) => $this->booking($booking), $result->cancelled),            'ambiguous' => array_map(fn (ReservationEvent $event) => $this->event($event), $result->ambiguous),
+            'updated' => array_map(fn (Booking $booking) => $this->booking($booking), $result->updated),
+            'cancelled' => array_map(fn (Booking $booking) => $this->booking($booking), $result->cancelled),          'ambiguous' => array_map(fn (ReservationEvent $event) => $this->event($event), $result->ambiguous),
             'skipped' => array_map(fn (ReservationEvent $event) => $this->event($event), $result->skipped),
             'warnings' => array_map(fn (ParseWarning $warning) => [
                 'uid' => $warning->uid,
