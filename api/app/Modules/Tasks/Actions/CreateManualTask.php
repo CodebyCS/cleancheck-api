@@ -41,7 +41,7 @@ class CreateManualTask
 
         $this->validator->validatePropertyActive($data);
 
-        $schedule = $this->cleaningSchedule->calculate($type, $data->checkIn);
+        $schedule = $this->cleaningSchedule->calculate($type, $data->checkIn, null, $data->propertySchedule);
 
         try {
             return Task::create([

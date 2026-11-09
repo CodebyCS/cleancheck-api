@@ -66,6 +66,7 @@ final class IcalSyncService
             throw $e;
         }
 
-        return $this->importService->importInto($source, $syncRun, $parseResult);
+        // Only a full, successful read of the live feed may cancel or update bookings.
+        return $this->importService->importInto($source, $syncRun, $parseResult, liveFeed: true);
     }
 }

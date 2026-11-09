@@ -30,15 +30,16 @@ class RestoreTask
         if ($task->type === 'checkout_cleaning') {
             $this->validator->validateCheckoutCleaning($data);
 
-            if ($data->checkOut->copy()->setTime(11, 30)->isPast()) {throw ValidationException::withMessages([
-                'check_out' => 'A reserva já terminou, não é possível restaurar a limpeza.',
+            $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkOut, $data->nextCheckIn, $data->propertySchedule);
+            // Uses the same start hour as the schedule instead of a fixed 11:30.
+            if ($schedule['scheduled_start_at']->isPast()) {
+                throw ValidationException::withMessages([
+                    'check_out' => 'A reserva já terminou, não é possível restaurar a limpeza.',
                 ]);
             }
-
-            $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkOut, $data->nextCheckIn);
         } else {
             $this->validator->validateInspection($data);
-            $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkIn);
+            $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkIn, null, $data->propertySchedule);
         }
 
         $this->validator->validatePropertyActive($data);

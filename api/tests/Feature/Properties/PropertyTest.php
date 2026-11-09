@@ -39,14 +39,14 @@ it('creates a property and returns it when listing', function () {
 });
 
 it('allows a supervisor to create a property', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(PROPERTIES_URL, validProperty())
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(PROPERTIES_URL, validProperty())
         ->assertCreated();
 });
 
 it('rejects missing required fields', function () {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->postJson(PROPERTIES_URL, [])
+    authenticateApiUser(userWithRole('admin'));
+    $this->postJson(PROPERTIES_URL, [])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['name', 'address', 'postal_code', 'city']);
 
@@ -54,8 +54,8 @@ it('rejects missing required fields', function () {
 });
 
 it('rejects an invalid postal code', function () {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->postJson(PROPERTIES_URL, validProperty(['postal_code' => '4050']))
+    authenticateApiUser(userWithRole('admin'));
+    $this->postJson(PROPERTIES_URL, validProperty(['postal_code' => '4050']))
         ->assertUnprocessable()
         ->assertJsonValidationErrors([
             'postal_code' => 'O código postal deve ter o formato 1234-567.',
@@ -63,8 +63,8 @@ it('rejects an invalid postal code', function () {
 });
 
 it('forbids a service_provider from creating or listing properties', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum')
-        ->postJson(PROPERTIES_URL, validProperty())
+    authenticateApiUser(userWithRole('service_provider'));
+    $this->postJson(PROPERTIES_URL, validProperty())
         ->assertForbidden();
 
     $this->getJson(PROPERTIES_URL)->assertForbidden();

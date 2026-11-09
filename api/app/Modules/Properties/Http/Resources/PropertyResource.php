@@ -25,6 +25,7 @@ class PropertyResource extends JsonResource
             'base_cleaning_amount' => $this->base_cleaning_amount,
             'default_check_in_time' => $this->formatTime($this->default_check_in_time),
             'default_check_out_time' => $this->formatTime($this->default_check_out_time),
+            'timezone' => $this->timezone,
             'is_active' => $this->is_active,
             'created_at' => $this->created_at?->toIso8601String(),
         ];

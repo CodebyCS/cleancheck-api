@@ -13,16 +13,16 @@ it('returns only the profile of the authenticated provider', function () {
     $bruno = createServiceProvider('bruno@example.test', ['city' => 'Lisboa']);
     $ana->forceFill(['photo_path' => 'service-providers/ana.jpg'])->save();
 
-    $this->actingAs($ana->user, 'sanctum')
-        ->getJson('/api/profile')
+    authenticateApiUser($ana->user);
+    $this->getJson('/api/profile')
         ->assertOk()
         ->assertJsonPath('data.id', $ana->id)
         ->assertJsonPath('data.email', 'ana@example.test')
         ->assertJsonPath('data.city', 'Porto')
         ->assertJsonPath('data.photo_url', fn ($url) => is_string($url));
 
-    $this->actingAs($bruno->user, 'sanctum')
-        ->getJson('/api/profile')
+    authenticateApiUser($bruno->user);
+    $this->getJson('/api/profile')
         ->assertOk()
         ->assertJsonPath('data.id', $bruno->id)
         ->assertJsonPath('data.email', 'bruno@example.test')
@@ -33,16 +33,16 @@ it('does not let a provider read other providers', function () {
     $ana = createServiceProvider('ana@example.test');
     $bruno = createServiceProvider('bruno@example.test');
 
-    $this->actingAs($ana->user, 'sanctum')
-        ->getJson('/api/service-providers')
+    authenticateApiUser($ana->user);
+    $this->getJson('/api/service-providers')
         ->assertForbidden();
 
     $this->putJson("/api/service-providers/{$bruno->id}", [])->assertForbidden();
 });
 
 it('returns 404 for an account without a provider record', function () {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->getJson('/api/profile')
+    authenticateApiUser(userWithRole('admin'));
+    $this->getJson('/api/profile')
         ->assertNotFound();
 });
 
@@ -52,7 +52,7 @@ it('requires an active authenticated account', function () {
     $ana = createServiceProvider('ana@example.test');
     $ana->user->update(['is_active' => false]);
 
-    $this->actingAs($ana->user->fresh(), 'sanctum')
-        ->getJson('/api/profile')
+    authenticateApiUser($ana->user->fresh());
+    $this->getJson('/api/profile')
         ->assertUnauthorized();
 });

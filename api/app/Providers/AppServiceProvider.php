@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use App\Modules\Tasks\Contracts\BookingDataProvider;
+use App\Modules\Tasks\Contracts\PropertyScheduleProvider;
+use App\Modules\Tasks\Infrastructure\DatabasePropertyScheduleProvider;
 use App\Modules\Tasks\Infrastructure\EloquentBookingDataProvider;
 use App\Modules\Tasks\Listeners\CreateCheckoutCleaningOnBookingImported;
 use App\Modules\Tasks\Contracts\ProviderOpenTasks;
@@ -28,8 +30,9 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(BookingDataProvider::class, EloquentBookingDataProvider::class);
 
-        // TODO(properties): Consume this contract in provider deactivation validation when open tasks must block deactivation.
         $this->app->bind(ProviderOpenTasks::class, EloquentProviderOpenTasks::class);
+        
+        $this->app->bind(PropertyScheduleProvider::class, DatabasePropertyScheduleProvider::class);
     }
 
     /**

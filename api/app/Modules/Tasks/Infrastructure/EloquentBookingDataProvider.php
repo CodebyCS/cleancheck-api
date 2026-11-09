@@ -4,6 +4,7 @@ namespace App\Modules\Tasks\Infrastructure;
 
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Tasks\Contracts\BookingDataProvider;
+use App\Modules\Tasks\Contracts\PropertyScheduleProvider;
 use App\Modules\Tasks\Support\BookingSnapshot;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,10 @@ use App\Modules\Reservations\Enums\ReservationStatus;
 
 class EloquentBookingDataProvider implements BookingDataProvider
 {
+    public function __construct(
+        private PropertyScheduleProvider $propertySchedules,
+    ) {}
+
     public function find(int $bookingId): ?BookingSnapshot
     {
         $booking = Booking::with('bookingSource')
@@ -36,6 +41,7 @@ class EloquentBookingDataProvider implements BookingDataProvider
             checkOut: $checkOut ? Carbon::parse($checkOut) : null,
             nextCheckIn: ($propertyId && $checkOut) ? $this->findNextCheckIn($booking->id, $propertyId, Carbon::parse($checkOut)) : null,
             propertyActive: $propertyActive,
+            propertySchedule: $propertyId ? $this->propertySchedules->find($propertyId) : null,
         );
     }
 

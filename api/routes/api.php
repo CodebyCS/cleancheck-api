@@ -9,6 +9,7 @@ use App\Modules\Properties\Http\Controllers\ServiceProviderPhotoController;
 use App\Modules\Reservations\Http\Controllers\IcalImportController;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
 use App\Modules\Reservations\Http\Controllers\BookingSourceController;
+use App\Modules\Reservations\Http\Controllers\BookingController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
 use App\Modules\Tasks\Http\Controllers\TaskImpedimentController;
 use App\Modules\Tasks\Http\Controllers\ProviderTaskController;
@@ -74,6 +75,12 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::post('/tasks/{task}/restore', [TaskController::class, 'restore'])->whereNumber('task');
         Route::post('/tasks/{task}/cancel', [TaskController::class, 'cancel'])->whereNumber('task');
         Route::post('/tasks/{task}/complete', [TaskController::class, 'complete'])->whereNumber('task');
+        
+        // Bookings
+        Route::get('/properties/{property}/bookings', [BookingController::class, 'index'])
+            ->whereNumber('property');
+        Route::patch('/bookings/{booking}/schedule', [BookingController::class, 'updateSchedule'])
+            ->whereNumber('booking');
     });
 
     Route::middleware('role:service_provider')->group(function (): void {

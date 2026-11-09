@@ -1,0 +1,6 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//CleanCheck//Fixture Airbnb Sem Eventos//PT
+CALSCALE:GREGORIAN
+X-WR-CALNAME:Airbnb (ficticio - sem eventos)
+END:VCALENDAR
