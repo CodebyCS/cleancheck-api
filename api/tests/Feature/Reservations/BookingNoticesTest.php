@@ -14,37 +14,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-function noticeBooking(int $propertyId): Booking
-{
-    $source = BookingSource::create([
-        'property_id' => $propertyId,
-        'channel' => 'airbnb',
-        'type' => 'url',
-        'url' => 'https://calendar.example.com/feed.ics?s=fict',
-        'is_active' => true,
-    ]);
-
-    return Booking::create([
-        'booking_source_id' => $source->id,
-        'external_uid' => 'fict-notice-0001@cleancheck.test',
-        'source_check_in_at' => '2026-11-02',
-        'source_check_out_at' => '2026-11-05',
-        'status' => ReservationStatus::Reserved,
-    ]);
-}
-
-function noticeTask(Booking $booking, ?int $serviceProviderId): Task
-{
-    return Task::create([
-        'booking_id' => $booking->id,
-        'property_id' => $booking->bookingSource->property_id,
-        'service_provider_id' => $serviceProviderId,
-        'type' => 'checkout_cleaning',
-        'status' => 'pending',
-        'scheduled_start_at' => '2026-11-05 11:30:00',
-    ]);
-}
-
 beforeEach(function () {
     $this->booking = noticeBooking(icalProperty()->id);
     $this->admin = userWithRole('admin');
