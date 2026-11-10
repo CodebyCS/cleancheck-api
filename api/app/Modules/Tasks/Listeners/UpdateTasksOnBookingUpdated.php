@@ -16,9 +16,11 @@ class UpdateTasksOnBookingUpdated implements ShouldQueue
 
     public array $backoff = [10, 60];
 
-    public function handle(BookingUpdated $event, UpdateTask $action): void
+    public function __construct(private readonly UpdateTask $action) {}
+
+    public function handle(BookingUpdated $event): void
     {
-        $action->forBooking($event->bookingId);
+        $this->action->forBooking($event->bookingId);
     }
 
     public function failed(BookingUpdated $event, Throwable $exception): void

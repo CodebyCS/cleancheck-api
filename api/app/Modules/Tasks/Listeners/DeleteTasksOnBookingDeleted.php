@@ -16,7 +16,9 @@ class DeleteTasksOnBookingDeleted implements ShouldQueue
 
     public array $backoff = [10, 60];
 
-    public function handle(BookingDeleted $event, DeleteTask $action): void
+    public function __construct(private readonly DeleteTask $action){}
+
+    public function handle(BookingDeleted $event): void
     {
         $action->forBooking($event->bookingId);
     }

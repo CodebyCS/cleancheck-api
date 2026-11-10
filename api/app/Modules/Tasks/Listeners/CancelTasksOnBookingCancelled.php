@@ -16,9 +16,11 @@ class CancelTasksOnBookingCancelled implements ShouldQueue
 
     public array $backoff = [10, 60];
 
-    public function handle(BookingCancelled $event, CancelTask $action): void
+    public function __construct(private readonly CancelTask $action) {}
+
+    public function handle(BookingCancelled $event): void
     {
-        $action->forBooking($event->bookingId);
+        $this->action->forBooking($event->bookingId);
     }
 
     public function failed(BookingCancelled $event, Throwable $exception): void
