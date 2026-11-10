@@ -7,6 +7,8 @@ namespace App\Modules\Reservations\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Modules\Properties\Models\Property;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable(['property_id', 'channel', 'type', 'url', 'file_path', 'is_active'])]
 final class BookingSource extends Model
@@ -28,5 +30,10 @@ final class BookingSource extends Model
     public function syncRuns(): HasMany
     {
         return $this->hasMany(SyncRun::class);
+    }
+
+        public function property(): BelongsTo
+    {
+        return $this->belongsTo(Property::class);
     }
 }
