@@ -160,9 +160,9 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
 
 ---
 
-## Evento `BookingCancelled`
+## Evento `BookingImported`
 
-`App\Modules\Reservations\Events\BookingCancelled`
+`App\Modules\Reservations\Events\BookingImported`
 
 | Propriedade | Tipo |
 |---|---|
