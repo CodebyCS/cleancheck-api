@@ -180,6 +180,7 @@ class CreateCheckoutCleaningTaskTest extends TestCase
             checkIn: Carbon::parse('2026-10-18 15:00:00'),
             checkOut: Carbon::parse('2026-10-20 10:00:00'),
             nextCheckIn: null,
+            propertyActive: false,
         );
 
         $action = $this->makeAction($snapshot);

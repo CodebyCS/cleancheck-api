@@ -206,6 +206,7 @@ class CreateManualTaskTest extends TestCase
             checkIn: Carbon::now()->addDays(2),
             checkOut: null,
             nextCheckIn: null,
+            propertyActive: false,
         );
 
         $action = $this->makeAction($snapshot);
