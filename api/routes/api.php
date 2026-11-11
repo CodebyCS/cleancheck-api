@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Evidence\Http\Controllers\EvidenceTrialController;
 use App\Modules\Properties\Http\Controllers\ProfileController;
 use App\Modules\Properties\Http\Controllers\PropertyController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderController;
@@ -92,6 +93,9 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::post('/my/tasks/{task}/complete', [ProviderTaskController::class, 'complete'])->whereNumber('task');
         Route::patch('/my/tasks/{task}/notes', [ProviderTaskController::class, 'updateNotes'])->whereNumber('task');
     });
+
+    // Trial upload to test camera and upload on real devices (not linked to tasks).
+    Route::post('/evidence-trials', [EvidenceTrialController::class, 'store'])->middleware('throttle:10,1');
 
     Route::get('/properties', [PropertyController::class, 'index']);
     Route::post('/properties', [PropertyController::class, 'store']);
