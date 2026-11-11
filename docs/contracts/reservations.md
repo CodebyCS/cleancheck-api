@@ -190,6 +190,7 @@ Disparado depois de gravar, uma vez por reserva, quando as datas efetivas podem 
 - quando o ajuste local é alterado (`PATCH /api/bookings/{booking}/schedule`). Enviar o mesmo ajuste outra vez não dispara.
 
 Quem ouve deve reler a reserva: as datas efetivas são `overridden_*` quando existem e, caso contrário, `source_*`.
+Também gera avisos internos (ver [Avisos internos](#avisos-internos)).
 
 ---
 
@@ -204,6 +205,7 @@ Quem ouve deve reler a reserva: as datas efetivas são `overridden_*` quando exi
 - Disparado uma vez por reserva em `cancelled`, depois de a sincronização terminar com sucesso.
 - Nunca é disparado duas vezes para a mesma reserva: só reservas `reserved` podem ser canceladas.
 - Remover ou manter as tarefas da reserva é decisão de quem ouve o evento (módulo Tasks).
+Também gera avisos internos (ver [Avisos internos](#avisos-internos)).
 
 ---
 
@@ -257,6 +259,91 @@ Conta ativa com perfil `admin` ou `supervisor` (grupo `role:admin,supervisor`) �
 - Erros → `422` no formato de validação do Laravel, no campo `check_in`, `check_out` ou `booking` (reserva não ativa). Reserva inexistente → `404`.
 
 ---
+
+## Avisos internos
+
+Cada alteração ou cancelamento de uma reserva gera um aviso para quem é afetado.
+
+### Quem recebe
+
+| Destinatário | Ligação à tarefa |
+|---|---|
+| Prestador de cada tarefa da reserva | `task` com o id da tarefa |
+| Todos os supervisores | `task: null` |
+| Todos os admins | `task: null` |
+
+- Só contas ativas.
+- O prestador é avisado mesmo que a tarefa já tenha sido removida por causa do cancelamento.
+- Os avisos são gravados por um listener em fila (`BookingUpdated`, `BookingCancelled`). Em desenvolvimento, é preciso `php artisan queue:work` a correr.
+
+### Sem duplicação
+
+- Um aviso por pessoa, reserva, tipo e datas efetivas (tabela `booking_notices`, chave única).
+- A mesma alteração repetida não cria outro aviso.
+- Se as datas voltam a umas que já tinham aviso, esse aviso volta a não lido e sobe para o topo (`notifiedAt` atualizado).
+
+### Endpoints
+
+Conta ativa, **qualquer perfil** · JSON · cada pessoa vê só os seus avisos. Sem autenticação → `401`. Aviso de outra pessoa ou inexistente → `404`.
+
+#### Listar
+
+`GET /api/booking-notices`
+
+| Parâmetro | Regra |
+|---|---|
+| `unread` | Opcional · `1` devolve só os não lidos |
+| `page` | Opcional · 20 por página |
+
+```json
+{
+  "data": [
+    {
+      "id": 12,
+      "type": "booking_updated",
+      "read": false,
+      "readAt": null,
+      "notifiedAt": "2026-11-10T14:05:00+00:00",
+      "booking": {
+        "id": 4,
+        "status": "reserved",
+        "checkIn": "2026-11-03",
+        "checkOut": "2026-11-06"
+      },
+      "property": { "id": 1, "name": "Casa Teste iCal" },
+      "task": { "id": 7, "available": true }
+    }
+  ],
+  "links": { "first": "...", "last": "...", "prev": null, "next": null },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1, "unreadCount": 1 }
+}
+```
+
+- Ordenados do mais recente para o mais antigo (`notifiedAt`).
+- `type`: `booking_updated` ou `booking_cancelled`.
+- `booking.checkIn` / `checkOut`: datas efetivas **no momento do aviso** (não as atuais).
+- `meta.unreadCount`: total de não lidos da pessoa, com ou sem o filtro `unread`.
+
+#### Detalhe
+
+`GET /api/booking-notices/{id}` → `200` com o aviso em `data`, no formato da listagem.
+
+#### Marcar como lido
+
+`PATCH /api/booking-notices/{id}/read` → `200` com o aviso em `data`.
+
+- Sem corpo.
+- Repetir não muda nada: `readAt` mantém a primeira leitura.
+- Ler não muda a ordem da lista.
+
+### Acesso removido
+
+- `task.available: false` quando a tarefa já não está atribuída a quem recebeu o aviso (reatribuída ou removida).
+- O aviso continua visível. A tarefa deixa de abrir: `GET /api/tasks/{id}` responde `404`.
+- O cliente mostra o aviso sem ligação à tarefa.
+
+---
+
 
 ## Fontes URL
 
@@ -381,5 +468,6 @@ Para correr:
 4. `POST /api/properties/{id}/booking-sources` com `{ "url": "<link>" }` → `201`.
 5. `POST /api/booking-sources/{id}/sync` → `200` com reservas em `created`. Repetir → as mesmas em `existing`.
 6. `GET /api/properties/{id}/bookings` → reservas com datas recebidas e efetivas. `PATCH /api/bookings/{id}/schedule` com `{ "check_in": null, "check_out": "<data>" }` → o ajuste aparece em `overridden` e `effective`.
-7. `php artisan reservations:sync --now` → sincroniza todas as fontes ativas. Ver as linhas em `sync_runs`.
-8. Sem link real: `php artisan test --filter=Reservations` cobre o fluxo com respostas simuladas.
+7. Com `php artisan queue:work` a correr, `GET /api/booking-notices` como supervisor → aviso `booking_updated` com as novas datas. `PATCH /api/booking-notices/{id}/read` → `read: true`.
+8. `php artisan reservations:sync --now` → sincroniza todas as fontes ativas. Ver as linhas em `sync_runs`.
+9. Sem link real: `php artisan test --filter=Reservations` cobre o fluxo com respostas simuladas.
