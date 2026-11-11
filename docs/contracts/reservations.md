@@ -362,12 +362,24 @@ Conta ativa com perfil `admin` ou `supervisor` · JSON. Perfil sem permissão (`
       "channel": "airbnb",
       "type": "url",
       "url": "https://www.airbnb.com/calendar/ical/123456.ics?s=fict",
-      "isActive": true
+      "isActive": true,
+      "lastSync": {
+        "status": "failed",
+        "startedAt": "2026-11-10T10:30:00+00:00",
+        "finishedAt": "2026-11-10T10:30:02+00:00",
+        "createdCount": 0,
+        "updatedCount": 0,
+        "cancelledCount": 0,
+        "errorMessage": "Não foi possível encontrar o servidor example.invalid."
+      },
+      "lastSuccessAt": "2026-11-10T10:00:01+00:00"
     }
   ]
 }
 ```
-
+- `lastSync`: última tentativa (`running`, `success` ou `failed`), ou `null` se nunca sincronizou. `errorMessage` só em `failed`.
+- `lastSuccessAt`: fim da última sincronização com sucesso, ou `null`.
+- `running` com mais de 5 minutos indica uma tentativa interrompida; a seguinte corre normalmente.
 - Inclui as fontes criadas por importação de ficheiro (`type: "file"`, `url: null`).
 - Imóvel inexistente → `404`.
 
@@ -405,6 +417,25 @@ Descarrega o calendário agora e importa as reservas.
 | `404` | — | Fonte inexistente |
 
 As mensagens de erro indicam o servidor, nunca o URL completo.
+
+### Editar
+
+`PATCH /api/booking-sources/{bookingSource}`
+
+```json
+{ "url": "https://www.airbnb.com/calendar/ical/123456.ics?s=novo", "is_active": true }
+```
+
+| Campo | Regra |
+|---|---|
+| `url` | Opcional · `https://` · máx. 2048 · único no imóvel |
+| `is_active` | Opcional · `true` / `false` |
+
+- Pelo menos um dos dois campos. Pedido vazio → `422`.
+- Só fontes `type: "url"`. Fonte de ficheiro → `422` no campo `source`.
+- Mudar o URL serve para o **mesmo** calendário (por exemplo, um link novo gerado no Airbnb). Para outro calendário, desativar esta fonte e registar uma nova: as reservas futuras que não aparecem no feed novo seriam canceladas.
+- Uma fonte inativa não é sincronizada (manual → `422 SOURCE_NOT_SYNCABLE`; automática → ignorada).
+- Resposta `200` com a fonte em `data`, no formato da listagem. Erros de validação → `422`. Perfil sem permissão → `403`.
 
 ### Limites do download
 
