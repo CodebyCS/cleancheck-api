@@ -104,6 +104,8 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         ->whereNumber('property');
     Route::post('/booking-sources/{bookingSource}/sync', [BookingSourceController::class, 'sync'])
         ->whereNumber('bookingSource');
+    Route::patch('/booking-sources/{bookingSource}', [BookingSourceController::class, 'update'])
+        ->whereNumber('bookingSource');
 
     Route::get('/service-providers', [ServiceProviderController::class, 'index']);
     Route::post('/service-providers', [ServiceProviderController::class, 'store']);
