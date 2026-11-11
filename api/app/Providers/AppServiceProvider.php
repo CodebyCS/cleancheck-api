@@ -14,7 +14,6 @@ use App\Modules\Properties\Events\PropertyDeactivated;
 use App\Modules\Tasks\Listeners\CancelTasksOnPropertyDeactivated;
 use App\Modules\Reservations\Events\BookingImported;
 use Illuminate\Support\Facades\Event;
-use App\Modules\Tasks\Listeners\DeleteTasksOnBookingDeleted;
 use App\Modules\Tasks\Listeners\UpdateTasksOnBookingUpdated;
 use App\Modules\Tasks\Listeners\CancelTasksOnBookingCancelled;
 use App\Modules\Reservations\Events\BookingUpdated;
@@ -43,8 +42,6 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(BookingImported::class, CreateCheckoutCleaningOnBookingImported::class);
         
         Event::listen(PropertyDeactivated::class, CancelTasksOnPropertyDeactivated::class);
-
-        Event::listen(BookingDeleted::class, DeleteTasksOnBookingDeleted::class);
 
         Event::listen(BookingUpdated::class, UpdateTasksOnBookingUpdated::class);
         

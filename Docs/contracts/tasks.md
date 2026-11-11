@@ -258,7 +258,6 @@ Reservations comunica-se com Tasks pelo `booking_id`; não envia datas nem propr
 | Reserva criada ou reimportada | `CreateCheckoutCleaningTask->execute($bookingId)` | Cria a limpeza de checkout | Ligado pelo evento `BookingImported` |
 | Datas da reserva alteradas | `UpdateTask->forBooking($bookingId)` | Recalcula as datas das tasks elegíveis | Action existente; aguarda evento e listener |
 | Reserva cancelada | `CancelTask->forBooking($bookingId)` | Cancela e apaga logicamente tasks `pending`; preserva `in_progress` e `completed` | Action existente; aguarda evento e listener |
-| Reserva removida | `DeleteTask->forBooking($bookingId)` | Apaga logicamente tasks não protegidas, sem alterar o status | Action existente; aguarda evento e listener |
 
 A integração de criação já está ligada. Para atualização, cancelamento e remoção, Reservations precisa definir e emitir os eventos correspondentes depois do commit. Depois, Tasks precisa criar e registar os listeners que chamam as Actions acima. Avisar as pessoas responsáveis por ambos os módulos quando forem alinhar essa integração.
 
