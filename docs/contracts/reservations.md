@@ -339,7 +339,7 @@ Conta ativa, **qualquer perfil** · JSON · cada pessoa vê só os seus avisos. 
 ### Acesso removido
 
 - `task.available: false` quando a tarefa já não está atribuída a quem recebeu o aviso (reatribuída ou removida).
-- O aviso continua visível. A tarefa deixa de abrir: `GET /api/tasks/{id}` responde `404`.
+- O aviso continua visível. A tarefa deixa de abrir: `GET /api/my/tasks/{id}` (prestador) responde `404`.
 - O cliente mostra o aviso sem ligação à tarefa.
 
 ---
