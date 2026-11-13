@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Evidence\Http\Controllers\EvidenceTrialController;
 use App\Modules\Properties\Http\Controllers\ProfileController;
 use App\Modules\Properties\Http\Controllers\PropertyController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderController;
@@ -13,6 +14,7 @@ use App\Modules\Reservations\Http\Controllers\BookingController;
 use App\Modules\Reservations\Http\Controllers\BookingNoticeController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
 use App\Modules\Tasks\Http\Controllers\TaskImpedimentController;
+use App\Modules\Tasks\Http\Controllers\ProviderTaskController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -73,6 +75,16 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::post('/reservations/ical/read', IcalReadController::class);
         Route::post('/reservations/ical/import', IcalImportController::class);
 
+        // Tasks
+        Route::get('/tasks', [TaskController::class, 'index']);
+        Route::get('/tasks/{task}', [TaskController::class, 'show'])->whereNumber('task');
+        Route::post('/tasks', [TaskController::class, 'store']);
+        Route::patch('/tasks/{task}', [TaskController::class, 'update'])->whereNumber('task');
+        Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->whereNumber('task');
+        Route::post('/tasks/{task}/restore', [TaskController::class, 'restore'])->whereNumber('task');
+        Route::post('/tasks/{task}/cancel', [TaskController::class, 'cancel'])->whereNumber('task');
+        Route::post('/tasks/{task}/complete', [TaskController::class, 'complete'])->whereNumber('task');
+        
         // Bookings
         Route::get('/properties/{property}/bookings', [BookingController::class, 'index'])
             ->whereNumber('property');
@@ -80,17 +92,18 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
             ->whereNumber('booking');
     });
 
+    Route::middleware('role:service_provider')->group(function (): void {
+        Route::post('/tasks/{task}/impediments', [TaskImpedimentController::class, 'store'])->whereNumber('task');
+    
+        Route::get('/my/tasks', [ProviderTaskController::class, 'index']);
+        Route::get('/my/tasks/{task}', [ProviderTaskController::class, 'show'])->whereNumber('task');
+        Route::post('/my/tasks/{task}/start', [ProviderTaskController::class, 'start'])->whereNumber('task');
+        Route::post('/my/tasks/{task}/complete', [ProviderTaskController::class, 'complete'])->whereNumber('task');
+        Route::patch('/my/tasks/{task}/notes', [ProviderTaskController::class, 'updateNotes'])->whereNumber('task');
+    });
 
-
-    // Route Tasks
-    Route::get('/tasks', [TaskController::class, 'index']);
-    Route::get('/tasks/{task}', [TaskController::class, 'show'])->whereNumber('task');
-    Route::post('/tasks/{task}/impediments', [TaskImpedimentController::class, 'store'])->whereNumber('task');
-
-    Route::post('/tasks', [TaskController::class, 'store']);
-    Route::patch('/tasks/{task}', [TaskController::class, 'update'])->whereNumber('task');
-    Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->whereNumber('task');
-    Route::post('/tasks/{task}/restore', [TaskController::class, 'restore'])->whereNumber('task');
+    // Trial upload to test camera and upload on real devices (not linked to tasks).
+    Route::post('/evidence-trials', [EvidenceTrialController::class, 'store'])->middleware('throttle:10,1');
 
     Route::get('/properties', [PropertyController::class, 'index']);
     Route::post('/properties', [PropertyController::class, 'store']);

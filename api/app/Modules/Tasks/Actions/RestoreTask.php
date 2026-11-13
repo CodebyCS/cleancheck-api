@@ -19,36 +19,45 @@ class RestoreTask
 
     public function manual(int $taskId): Task
     {
+        return DB::transaction(function () use ($taskId): Task {
+            $task = Task::onlyTrashed()
+                ->lockForUpdate()
+                ->findOrFail($taskId);
 
-        $task = Task::onlyTrashed()->findOrFail($taskId);
+            $data = $this->bookings->find($task->booking_id)
+                ?? throw ValidationException::withMessages([
+                    'booking_id' => 'A reserva desta tarefa já não existe, não é possível restaurar.',
+                ]);
 
-        $data = $this->bookings->find($task->booking_id)
-            ?? throw ValidationException::withMessages([
-                'booking_id' => 'A reserva desta tarefa já não existe, não é possível restaurar.',
+            if ($task->type === 'checkout_cleaning') {
+                $this->validator->validateCheckoutCleaning($data);
+
+                $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkOut, $data->nextCheckIn, $data->propertySchedule);
+
+                // Uses the same start hour as the schedule instead of a fixed 11:30.
+                if ($schedule['scheduled_start_at']->isPast()) {
+                    throw ValidationException::withMessages([
+                        'check_out' => 'A reserva já terminou, não é possível restaurar a limpeza.',
+                    ]);
+                }
+            } else {
+                $this->validator->validateInspection($data);
+                $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkIn, null, $data->propertySchedule);
+            }
+
+            $this->validator->validatePropertyActive($data);
+
+            $task->restore();
+            $task->update([
+                'status' => 'pending',
+                'scheduled_start_at' => $schedule['scheduled_start_at'],
+                'scheduled_end_at' => $schedule['scheduled_end_at'],
+                'started_at' => null,
+                'completed_at' => null,
+                'completed_by_user_id' => null,
             ]);
 
-        if ($task->type === 'checkout_cleaning') {
-            $this->validator->validateCheckoutCleaning($data);
-            $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkOut, $data->nextCheckIn, $data->propertySchedule);
-            // Uses the same start hour as the schedule instead of a fixed 11:30.
-            if ($schedule['scheduled_start_at']->isPast()) {
-                throw ValidationException::withMessages([
-                    'check_out' => 'A reserva já terminou, não é possível restaurar a limpeza.',
-                ]);
-            }
-        } else {
-            $this->validator->validateInspection($data);
-            $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkIn, null, $data->propertySchedule);
-        }
-
-        DB::transaction(function () use ($task, $schedule) {
-        $task->restore();
-        $task->update([
-            'scheduled_start_at' => $schedule['scheduled_start_at'],
-            'scheduled_end_at'   => $schedule['scheduled_end_at'],
-        ]);
-    });
-
-        return $task;
+            return $task;
+        });
     }
 }

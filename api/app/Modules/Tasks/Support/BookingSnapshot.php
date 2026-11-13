@@ -12,6 +12,7 @@ final readonly class BookingSnapshot
         public ?Carbon $checkIn,
         public ?Carbon $checkOut,
         public ?Carbon $nextCheckIn,
+        public bool $propertyActive,
         public ?PropertySchedule $propertySchedule = null,
     ) {}
 }

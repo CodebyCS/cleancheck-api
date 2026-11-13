@@ -21,7 +21,7 @@ class CreateCheckoutCleaningOnBookingImported implements ShouldQueue
 
     public int $tries = 3;
 
-    public $backoff = [10, 60];
+    public array $backoff = [10, 60];
 
     public function handle(BookingImported $event): void
     {
