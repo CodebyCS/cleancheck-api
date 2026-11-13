@@ -132,3 +132,34 @@ function feedSequence(string ...$fixtures): void
 
     \Illuminate\Support\Facades\Http::fake(['calendar.example.com/*' => $sequence]);
 }
+
+function noticeBooking(int $propertyId): \App\Modules\Reservations\Models\Booking
+{
+    $source = \App\Modules\Reservations\Models\BookingSource::create([
+        'property_id' => $propertyId,
+        'channel' => 'airbnb',
+        'type' => 'url',
+        'url' => 'https://calendar.example.com/feed.ics?s=fict',
+        'is_active' => true,
+    ]);
+
+    return \App\Modules\Reservations\Models\Booking::create([
+        'booking_source_id' => $source->id,
+        'external_uid' => 'fict-notice-0001@cleancheck.test',
+        'source_check_in_at' => '2026-11-02',
+        'source_check_out_at' => '2026-11-05',
+        'status' => \App\Modules\Reservations\Enums\ReservationStatus::Reserved,
+    ]);
+}
+
+function noticeTask(\App\Modules\Reservations\Models\Booking $booking, ?int $serviceProviderId): \App\Models\Task
+{
+    return \App\Models\Task::create([
+        'booking_id' => $booking->id,
+        'property_id' => $booking->bookingSource->property_id,
+        'service_provider_id' => $serviceProviderId,
+        'type' => 'checkout_cleaning',
+        'status' => 'pending',
+        'scheduled_start_at' => '2026-11-05 11:30:00',
+    ]);
+}

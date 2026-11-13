@@ -160,9 +160,9 @@ Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria dup
 
 ---
 
-## Evento `BookingCancelled`
+## Evento `BookingImported`
 
-`App\Modules\Reservations\Events\BookingCancelled`
+`App\Modules\Reservations\Events\BookingImported`
 
 | Propriedade | Tipo |
 |---|---|
@@ -190,6 +190,7 @@ Disparado depois de gravar, uma vez por reserva, quando as datas efetivas podem 
 - quando o ajuste local é alterado (`PATCH /api/bookings/{booking}/schedule`). Enviar o mesmo ajuste outra vez não dispara.
 
 Quem ouve deve reler a reserva: as datas efetivas são `overridden_*` quando existem e, caso contrário, `source_*`.
+Também gera avisos internos (ver [Avisos internos](#avisos-internos)).
 
 ---
 
@@ -204,6 +205,7 @@ Quem ouve deve reler a reserva: as datas efetivas são `overridden_*` quando exi
 - Disparado uma vez por reserva em `cancelled`, depois de a sincronização terminar com sucesso.
 - Nunca é disparado duas vezes para a mesma reserva: só reservas `reserved` podem ser canceladas.
 - Remover ou manter as tarefas da reserva é decisão de quem ouve o evento (módulo Tasks).
+Também gera avisos internos (ver [Avisos internos](#avisos-internos)).
 
 ---
 
@@ -258,6 +260,91 @@ Conta ativa com perfil `admin` ou `supervisor` (grupo `role:admin,supervisor`) �
 
 ---
 
+## Avisos internos
+
+Cada alteração ou cancelamento de uma reserva gera um aviso para quem é afetado.
+
+### Quem recebe
+
+| Destinatário | Ligação à tarefa |
+|---|---|
+| Prestador de cada tarefa da reserva | `task` com o id da tarefa |
+| Todos os supervisores | `task: null` |
+| Todos os admins | `task: null` |
+
+- Só contas ativas.
+- O prestador é avisado mesmo que a tarefa já tenha sido removida por causa do cancelamento.
+- Os avisos são gravados por um listener em fila (`BookingUpdated`, `BookingCancelled`). Em desenvolvimento, é preciso `php artisan queue:work` a correr.
+
+### Sem duplicação
+
+- Um aviso por pessoa, reserva, tipo e datas efetivas (tabela `booking_notices`, chave única).
+- A mesma alteração repetida não cria outro aviso.
+- Se as datas voltam a umas que já tinham aviso, esse aviso volta a não lido e sobe para o topo (`notifiedAt` atualizado).
+
+### Endpoints
+
+Conta ativa, **qualquer perfil** · JSON · cada pessoa vê só os seus avisos. Sem autenticação → `401`. Aviso de outra pessoa ou inexistente → `404`.
+
+#### Listar
+
+`GET /api/booking-notices`
+
+| Parâmetro | Regra |
+|---|---|
+| `unread` | Opcional · `1` devolve só os não lidos |
+| `page` | Opcional · 20 por página |
+
+```json
+{
+  "data": [
+    {
+      "id": 12,
+      "type": "booking_updated",
+      "read": false,
+      "readAt": null,
+      "notifiedAt": "2026-11-10T14:05:00+00:00",
+      "booking": {
+        "id": 4,
+        "status": "reserved",
+        "checkIn": "2026-11-03",
+        "checkOut": "2026-11-06"
+      },
+      "property": { "id": 1, "name": "Casa Teste iCal" },
+      "task": { "id": 7, "available": true }
+    }
+  ],
+  "links": { "first": "...", "last": "...", "prev": null, "next": null },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1, "unreadCount": 1 }
+}
+```
+
+- Ordenados do mais recente para o mais antigo (`notifiedAt`).
+- `type`: `booking_updated` ou `booking_cancelled`.
+- `booking.checkIn` / `checkOut`: datas efetivas **no momento do aviso** (não as atuais).
+- `meta.unreadCount`: total de não lidos da pessoa, com ou sem o filtro `unread`.
+
+#### Detalhe
+
+`GET /api/booking-notices/{id}` → `200` com o aviso em `data`, no formato da listagem.
+
+#### Marcar como lido
+
+`PATCH /api/booking-notices/{id}/read` → `200` com o aviso em `data`.
+
+- Sem corpo.
+- Repetir não muda nada: `readAt` mantém a primeira leitura.
+- Ler não muda a ordem da lista.
+
+### Acesso removido
+
+- `task.available: false` quando a tarefa já não está atribuída a quem recebeu o aviso (reatribuída ou removida).
+- O aviso continua visível. A tarefa deixa de abrir: `GET /api/my/tasks/{id}` (prestador) responde `404`.
+- O cliente mostra o aviso sem ligação à tarefa.
+
+---
+
+
 ## Fontes URL
 
 Conta ativa com perfil `admin` ou `supervisor` · JSON. Perfil sem permissão (`service_provider`) → `403`. Sem autenticação → `401`.
@@ -275,12 +362,24 @@ Conta ativa com perfil `admin` ou `supervisor` · JSON. Perfil sem permissão (`
       "channel": "airbnb",
       "type": "url",
       "url": "https://www.airbnb.com/calendar/ical/123456.ics?s=fict",
-      "isActive": true
+      "isActive": true,
+      "lastSync": {
+        "status": "failed",
+        "startedAt": "2026-11-10T10:30:00+00:00",
+        "finishedAt": "2026-11-10T10:30:02+00:00",
+        "createdCount": 0,
+        "updatedCount": 0,
+        "cancelledCount": 0,
+        "errorMessage": "Não foi possível encontrar o servidor example.invalid."
+      },
+      "lastSuccessAt": "2026-11-10T10:00:01+00:00"
     }
   ]
 }
 ```
-
+- `lastSync`: última tentativa (`running`, `success` ou `failed`), ou `null` se nunca sincronizou. `errorMessage` só em `failed`.
+- `lastSuccessAt`: fim da última sincronização com sucesso, ou `null`.
+- `running` com mais de 5 minutos indica uma tentativa interrompida; a seguinte corre normalmente.
 - Inclui as fontes criadas por importação de ficheiro (`type: "file"`, `url: null`).
 - Imóvel inexistente → `404`.
 
@@ -318,6 +417,25 @@ Descarrega o calendário agora e importa as reservas.
 | `404` | — | Fonte inexistente |
 
 As mensagens de erro indicam o servidor, nunca o URL completo.
+
+### Editar
+
+`PATCH /api/booking-sources/{bookingSource}`
+
+```json
+{ "url": "https://www.airbnb.com/calendar/ical/123456.ics?s=novo", "is_active": true }
+```
+
+| Campo | Regra |
+|---|---|
+| `url` | Opcional · `https://` · máx. 2048 · único no imóvel |
+| `is_active` | Opcional · `true` / `false` |
+
+- Pelo menos um dos dois campos. Pedido vazio → `422`.
+- Só fontes `type: "url"`. Fonte de ficheiro → `422` no campo `source`.
+- Mudar o URL serve para o **mesmo** calendário (por exemplo, um link novo gerado no Airbnb). Para outro calendário, desativar esta fonte e registar uma nova: as reservas futuras que não aparecem no feed novo seriam canceladas.
+- Uma fonte inativa não é sincronizada (manual → `422 SOURCE_NOT_SYNCABLE`; automática → ignorada).
+- Resposta `200` com a fonte em `data`, no formato da listagem. Erros de validação → `422`. Perfil sem permissão → `403`.
 
 ### Limites do download
 
@@ -381,5 +499,6 @@ Para correr:
 4. `POST /api/properties/{id}/booking-sources` com `{ "url": "<link>" }` → `201`.
 5. `POST /api/booking-sources/{id}/sync` → `200` com reservas em `created`. Repetir → as mesmas em `existing`.
 6. `GET /api/properties/{id}/bookings` → reservas com datas recebidas e efetivas. `PATCH /api/bookings/{id}/schedule` com `{ "check_in": null, "check_out": "<data>" }` → o ajuste aparece em `overridden` e `effective`.
-7. `php artisan reservations:sync --now` → sincroniza todas as fontes ativas. Ver as linhas em `sync_runs`.
-8. Sem link real: `php artisan test --filter=Reservations` cobre o fluxo com respostas simuladas.
+7. Com `php artisan queue:work` a correr, `GET /api/booking-notices` como supervisor → aviso `booking_updated` com as novas datas. `PATCH /api/booking-notices/{id}/read` → `read: true`.
+8. `php artisan reservations:sync --now` → sincroniza todas as fontes ativas. Ver as linhas em `sync_runs`.
+9. Sem link real: `php artisan test --filter=Reservations` cobre o fluxo com respostas simuladas.
