@@ -115,6 +115,7 @@ it('uses the property check-in time as the inspection deadline', function () {
         checkIn: Carbon::parse('2026-12-05 15:00:00'),
         checkOut: Carbon::parse('2026-12-07 11:00:00'),
         nextCheckIn: null,
+        propertyActive: true,
         propertySchedule: new PropertySchedule('11:00', $checkInTime, 'Europe/Lisbon'),
     );
 
