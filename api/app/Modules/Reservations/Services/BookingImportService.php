@@ -13,6 +13,9 @@ use App\Modules\Reservations\Enums\ReservationStatus;
 use App\Modules\Reservations\Events\BookingCancelled;
 use App\Modules\Reservations\Events\BookingUpdated;
 use App\Modules\Reservations\Events\BookingImported;
+use App\Modules\Reservations\Exceptions\IcalFetchException;
+use App\Modules\Reservations\Exceptions\InvalidIcalException;
+use Illuminate\Support\Facades\Log;
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Reservations\Models\BookingSource;
 use App\Modules\Reservations\Models\SyncRun;
@@ -42,11 +45,40 @@ final class BookingImportService
 
     public function failRun(SyncRun $syncRun, Throwable $e): void
     {
+        // Download and calendar errors already carry a message meant for the team.
+        $expected = $e instanceof IcalFetchException || $e instanceof InvalidIcalException;
+
+        if (! $expected) {
+            // The technical details stay in the log, linked to the run, never in the API response.
+            Log::error('iCal sync run failed unexpectedly', [
+                'sync_run_id' => $syncRun->id,
+                'booking_source_id' => $syncRun->booking_source_id,
+                'exception' => $e,
+            ]);
+        }
+
         $syncRun->update([
             'status' => 'failed',
             'finished_at' => now(),
-            'error_message' => $e->getMessage(),
+            'error_message' => $expected
+                ? $e->getMessage()
+                : "Erro interno ao importar as reservas. Tente novamente; se repetir, indique à equipa técnica a tentativa #{$syncRun->id}.",
         ]);
+    }
+
+    /**
+     * Closes runs left as "running" by a process that died (killed, timed out, server restart).
+     * Only call it while holding the sync lock of the source: then no other run can be in progress.
+     */
+    public function closeInterruptedRuns(BookingSource $source): int
+    {
+        return SyncRun::where('booking_source_id', $source->id)
+            ->where('status', 'running')
+            ->update([
+                'status' => 'failed',
+                'finished_at' => now(),
+                'error_message' => 'Sincronização interrompida antes de terminar.',
+            ]);
     }
 
     public function importInto(

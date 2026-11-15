@@ -372,14 +372,17 @@ Conta ativa com perfil `admin` ou `supervisor` · JSON. Perfil sem permissão (`
         "cancelledCount": 0,
         "errorMessage": "Não foi possível encontrar o servidor example.invalid."
       },
-      "lastSuccessAt": "2026-11-10T10:00:01+00:00"
+      "lastSuccessAt": "2026-11-10T10:00:01+00:00",
+      "stale": false,
+      "staleAfterMinutes": 120
     }
   ]
 }
 ```
 - `lastSync`: última tentativa (`running`, `success` ou `failed`), ou `null` se nunca sincronizou. `errorMessage` só em `failed`.
 - `lastSuccessAt`: fim da última sincronização com sucesso, ou `null`.
-- `running` com mais de 5 minutos indica uma tentativa interrompida; a seguinte corre normalmente.
+- `stale` (desatualizada): `true` quando uma fonte URL ativa não tem sucesso há mais de `staleAfterMinutes` minutos, ou nunca teve. Fontes de ficheiro ou inativas são sempre `false`. O limite está em `config/reservations.php` (`ICAL_STALE_AFTER_MINUTES`, por omissão 120 = quatro ciclos de 30 minutos).
+- `running` com mais de 5 minutos indica uma tentativa interrompida. A sincronização seguinte fecha-a como `failed`, com a mensagem "Sincronização interrompida antes de terminar.".
 - Inclui as fontes criadas por importação de ficheiro (`type: "file"`, `url: null`).
 - Imóvel inexistente → `404`.
 

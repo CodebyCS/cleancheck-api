@@ -115,3 +115,47 @@ it('forbids service providers from editing sources', function () {
     $this->patchJson("/api/booking-sources/{$this->source->id}", ['is_active' => false])
         ->assertForbidden();
 });
+
+it('flags a url source without a recent success as stale', function () {
+    $this->travelTo('2026-11-10 13:00:00');
+    sourceRun($this->source, 'success', '2026-11-10 10:00:00');
+    sourceRun($this->source, 'failed', '2026-11-10 12:30:00', ['error_message' => 'Falhou.']);
+
+    authenticateApiUser(userWithRole('supervisor'));
+
+    $this->getJson("/api/properties/{$this->property->id}/booking-sources")
+        ->assertOk()
+        ->assertJsonPath('data.0.stale', true)
+        ->assertJsonPath('data.0.staleAfterMinutes', 120);
+});
+
+it('does not flag a source that synced recently', function () {
+    $this->travelTo('2026-11-10 13:00:00');
+    sourceRun($this->source, 'success', '2026-11-10 12:00:00');
+
+    authenticateApiUser(userWithRole('supervisor'));
+
+    $this->getJson("/api/properties/{$this->property->id}/booking-sources")
+        ->assertOk()
+        ->assertJsonPath('data.0.stale', false);
+});
+
+it('flags a url source that never synced successfully', function () {
+    sourceRun($this->source, 'failed', '2026-11-10 12:30:00', ['error_message' => 'Falhou.']);
+
+    authenticateApiUser(userWithRole('supervisor'));
+
+    $this->getJson("/api/properties/{$this->property->id}/booking-sources")
+        ->assertOk()
+        ->assertJsonPath('data.0.stale', true);
+});
+
+it('never flags an inactive source', function () {
+    $this->source->update(['is_active' => false]);
+
+    authenticateApiUser(userWithRole('supervisor'));
+
+    $this->getJson("/api/properties/{$this->property->id}/booking-sources")
+        ->assertOk()
+        ->assertJsonPath('data.0.stale', false);
+});
