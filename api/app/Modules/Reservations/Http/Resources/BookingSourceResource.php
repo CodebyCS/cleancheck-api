@@ -23,6 +23,8 @@ final class BookingSourceResource extends JsonResource
             'isActive' => $this->is_active,
             'lastSync' => $this->syncRunData($this->latestSyncRun),
             'lastSuccessAt' => $this->latestSuccessfulSyncRun?->finished_at?->toIso8601String(),
+            'stale' => $this->isStale(),
+            'staleAfterMinutes' => (int) config('reservations.stale_after_minutes'),
         ];
     }
 
@@ -41,5 +43,18 @@ final class BookingSourceResource extends JsonResource
             'cancelledCount' => $run->cancelled_count,
             'errorMessage' => $run->error_message,
         ];
+    }
+
+    // Only active url sources sync on their own, so only they can fall behind.
+    private function isStale(): bool
+    {
+        if ($this->type !== 'url' || ! $this->is_active) {
+            return false;
+        }
+
+        $lastSuccess = $this->latestSuccessfulSyncRun?->finished_at;
+
+        return $lastSuccess === null
+            || $lastSuccess->lt(now()->subMinutes((int) config('reservations.stale_after_minutes')));
     }
 }
