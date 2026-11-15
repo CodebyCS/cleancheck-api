@@ -52,9 +52,12 @@ final class IcalSyncService
 
     private function run(BookingSource $source): ImportResult
     {
+        // Holding the lock, any run still "running" belongs to a process that died.
+        $this->importService->closeInterruptedRuns($source);
+
         // The run is recorded before downloading, so failed downloads are logged too.
         $syncRun = $this->importService->startRun($source);
-
+        
         try {
             $parseResult = $this->adapter->parseFeed(
                 $this->fetcher->fetch($source->url),
