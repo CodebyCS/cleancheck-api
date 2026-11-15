@@ -16,10 +16,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'base_cleaning_amount',
     'default_check_in_time',
     'default_check_out_time',
+    'timezone',
     'is_active',
 ])]
 class Property extends Model
 {
+    public const DEFAULT_TIMEZONE = 'Europe/Lisbon';
+
+    /**
+     * Default values kept in sync with the database defaults.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'timezone' => self::DEFAULT_TIMEZONE,
+    ];
+
     /**
      * Get the attributes that should be cast.
      *

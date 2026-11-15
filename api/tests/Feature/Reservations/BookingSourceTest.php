@@ -19,8 +19,8 @@ beforeEach(function () {
 });
 
 it('registers an https url source for a property', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(bookingSourcesUrl($this->property->id), ['url' => AIRBNB_FEED_URL])
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(bookingSourcesUrl($this->property->id), ['url' => AIRBNB_FEED_URL])
         ->assertCreated()
         ->assertJsonPath('data.propertyId', $this->property->id)
         ->assertJsonPath('data.channel', 'airbnb')
@@ -36,8 +36,8 @@ it('registers an https url source for a property', function () {
 });
 
 it('rejects urls that are not https', function (string $url) {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(bookingSourcesUrl($this->property->id), ['url' => $url])
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(bookingSourcesUrl($this->property->id), ['url' => $url])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('url');
 
@@ -51,12 +51,12 @@ it('rejects urls that are not https', function (string $url) {
 it('rejects the same url twice for the same property', function () {
     $user = userWithRole('supervisor');
 
-    $this->actingAs($user, 'sanctum')
-        ->postJson(bookingSourcesUrl($this->property->id), ['url' => AIRBNB_FEED_URL])
+    authenticateApiUser($user);
+    $this->postJson(bookingSourcesUrl($this->property->id), ['url' => AIRBNB_FEED_URL])
         ->assertCreated();
 
-    $this->actingAs($user, 'sanctum')
-        ->postJson(bookingSourcesUrl($this->property->id), ['url' => AIRBNB_FEED_URL])
+    authenticateApiUser($user);
+    $this->postJson(bookingSourcesUrl($this->property->id), ['url' => AIRBNB_FEED_URL])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('url');
 
@@ -69,28 +69,28 @@ it('lists only the sources of the given property', function () {
     BookingSource::create(['property_id' => $this->property->id, 'channel' => 'airbnb', 'type' => 'url', 'url' => AIRBNB_FEED_URL]);
     BookingSource::create(['property_id' => $other->id, 'channel' => 'airbnb', 'type' => 'url', 'url' => AIRBNB_FEED_URL]);
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->getJson(bookingSourcesUrl($this->property->id))
+    authenticateApiUser(userWithRole('admin'));
+    $this->getJson(bookingSourcesUrl($this->property->id))
         ->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.propertyId', $this->property->id);
 });
 
 it('returns 404 for a property that does not exist', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->getJson(bookingSourcesUrl(999))
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->getJson(bookingSourcesUrl(999))
         ->assertNotFound();
 });
 
 it('returns 403 for a service provider', function () {
     $user = userWithRole('service_provider');
 
-    $this->actingAs($user, 'sanctum')
-        ->getJson(bookingSourcesUrl($this->property->id))
+    authenticateApiUser($user);
+    $this->getJson(bookingSourcesUrl($this->property->id))
         ->assertForbidden();
 
-    $this->actingAs($user, 'sanctum')
-        ->postJson(bookingSourcesUrl($this->property->id), ['url' => AIRBNB_FEED_URL])
+    authenticateApiUser($user);
+    $this->postJson(bookingSourcesUrl($this->property->id), ['url' => AIRBNB_FEED_URL])
         ->assertForbidden();
 
     $this->assertDatabaseCount('booking_sources', 0);

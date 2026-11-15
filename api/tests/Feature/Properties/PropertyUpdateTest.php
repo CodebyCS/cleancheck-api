@@ -31,8 +31,8 @@ it('updates a property with contract fields and persists them', function () {
     $property = existingProperty();
     $responsible = createServiceProvider('ana@example.test');
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson("/api/properties/{$property->id}", propertyPayload([
+    authenticateApiUser(userWithRole('admin'));
+    $this->putJson("/api/properties/{$property->id}", propertyPayload([
             'name' => 'Casa da Ribeira T2',
             'responsible_service_provider_id' => $responsible->id,
             'base_cleaning_amount' => 45.5,
@@ -54,8 +54,8 @@ it('updates a property with contract fields and persists them', function () {
 it('rejects invalid contract fields', function () {
     $property = existingProperty();
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson("/api/properties/{$property->id}", propertyPayload([
+    authenticateApiUser(userWithRole('admin'));
+    $this->putJson("/api/properties/{$property->id}", propertyPayload([
             'base_cleaning_amount' => -1,
             'default_check_in_time' => '25:00',
             'default_check_out_time' => 'manha',
@@ -73,8 +73,8 @@ it('rejects an inactive responsible provider', function () {
     $inactive = createServiceProvider('inativo@example.test');
     $inactive->user->update(['is_active' => false]);
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson("/api/properties/{$property->id}", propertyPayload([
+    authenticateApiUser(userWithRole('admin'));
+    $this->putJson("/api/properties/{$property->id}", propertyPayload([
             'responsible_service_provider_id' => $inactive->id,
         ]))
         ->assertUnprocessable()
@@ -130,7 +130,7 @@ it('forbids a prestador from updating or deactivating properties', function () {
 });
 
 it('returns 404 for a property that does not exist', function () {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson('/api/properties/999', propertyPayload())
+    authenticateApiUser(userWithRole('admin'));
+    $this->putJson('/api/properties/999', propertyPayload())
         ->assertNotFound();
 });

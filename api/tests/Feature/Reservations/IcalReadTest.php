@@ -9,8 +9,8 @@ uses(RefreshDatabase::class);
 const ICAL_READ_URL = '/api/reservations/ical/read';
 
 it('returns 200 with the events of a valid file', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
             'property_id' => 1,
         ], ['Accept' => 'application/json'])
@@ -28,8 +28,8 @@ it('returns 200 with the events of a valid file', function () {
 });
 
 it('allows admins to read a file', function () {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser(userWithRole('admin'));
+    $this->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
             'property_id' => 1,
         ], ['Accept' => 'application/json'])
@@ -37,8 +37,8 @@ it('allows admins to read a file', function () {
 });
 
 it('returns 200 with warnings for a file with invalid events', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-invalid.ics'),
             'property_id' => 1,
         ], ['Accept' => 'application/json'])
@@ -50,8 +50,8 @@ it('returns 200 with warnings for a file with invalid events', function () {
 });
 
 it('returns 422 EMPTY_FILE for an empty file', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-empty.ics'),
             'property_id' => 1,
         ], ['Accept' => 'application/json'])
@@ -60,8 +60,8 @@ it('returns 422 EMPTY_FILE for an empty file', function () {
 });
 
 it('returns 422 INVALID_ICAL for a file that is not a calendar', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-not-vcalendar.ics'),
             'property_id' => 1,
         ], ['Accept' => 'application/json'])
@@ -70,8 +70,8 @@ it('returns 422 INVALID_ICAL for a file that is not a calendar', function () {
 });
 
 it('returns 422 NO_FILE when no file is sent', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_READ_URL, [
             'property_id' => 1,
         ], ['Accept' => 'application/json'])
         ->assertStatus(422)
@@ -79,8 +79,8 @@ it('returns 422 NO_FILE when no file is sent', function () {
 });
 
 it('returns 422 INVALID_FILE_TYPE for a file without the .ics extension', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-valid.ics', 'calendar.txt'),
             'property_id' => 1,
         ], ['Accept' => 'application/json'])
@@ -89,8 +89,8 @@ it('returns 422 INVALID_FILE_TYPE for a file without the .ics extension', functi
 });
 
 it('returns 422 PROPERTY_NOT_FOUND when property_id is missing', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
         ], ['Accept' => 'application/json'])
         ->assertStatus(422)
@@ -109,8 +109,8 @@ it('returns 401 for an inactive account', function () {
     $user = userWithRole('supervisor');
     $user->forceFill(['is_active' => false])->save();
 
-    $this->actingAs($user, 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser($user);
+    $this->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
             'property_id' => 1,
         ], ['Accept' => 'application/json'])
@@ -118,8 +118,8 @@ it('returns 401 for an inactive account', function () {
 });
 
 it('returns 403 for a service provider', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum')
-        ->post(ICAL_READ_URL, [
+    authenticateApiUser(userWithRole('service_provider'));
+    $this->post(ICAL_READ_URL, [
             'file' => icalUpload('airbnb-valid.ics'),
             'property_id' => 1,
         ], ['Accept' => 'application/json'])

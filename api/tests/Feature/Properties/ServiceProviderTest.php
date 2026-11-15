@@ -20,8 +20,8 @@ function validServiceProvider(array $overrides = []): array
 }
 
 it('creates a service provider linked to a prestador account', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
         ->assertCreated()
         ->assertJsonPath('data.name', 'Ana Teste')
         ->assertJsonPath('data.email', 'ana@example.test')
@@ -42,8 +42,8 @@ it('creates a service provider linked to a prestador account', function () {
 });
 
 it('creates an account that can log in on mobile', function () {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
+    authenticateApiUser(userWithRole('admin'));
+    $this->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
         ->assertCreated();
 
     $this->postJson('/api/mobile/login', [
@@ -57,8 +57,8 @@ it('creates an account that can log in on mobile', function () {
 it('rejects an email that already has an account', function () {
     userWithRole('service_provider')->update(['email' => 'ana@example.test']);
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
+    authenticateApiUser(userWithRole('admin'));
+    $this->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
         ->assertUnprocessable()
         ->assertJsonValidationErrors([
             'email' => 'Já existe uma conta com este e-mail.',
@@ -68,8 +68,8 @@ it('rejects an email that already has an account', function () {
 });
 
 it('rejects invalid fields', function () {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->postJson(SERVICE_PROVIDERS_URL, validServiceProvider([
+    authenticateApiUser(userWithRole('admin'));
+    $this->postJson(SERVICE_PROVIDERS_URL, validServiceProvider([
             'email' => 'nao-e-email',
             'password' => 'curta',
             'phone' => '12',
@@ -81,8 +81,8 @@ it('rejects invalid fields', function () {
 });
 
 it('forbids a prestador from creating or listing service providers', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum')
-        ->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
+    authenticateApiUser(userWithRole('service_provider'));
+    $this->postJson(SERVICE_PROVIDERS_URL, validServiceProvider())
         ->assertForbidden();
 
     $this->getJson(SERVICE_PROVIDERS_URL)->assertForbidden();

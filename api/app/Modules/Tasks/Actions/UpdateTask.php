@@ -47,7 +47,7 @@ class UpdateTask
             try {
                 if ($task->type === 'checkout_cleaning') {
                     $this->validator->validateCheckoutCleaning($data);
-                    $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkOut, $data->nextCheckIn);
+                    $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkOut, $data->nextCheckIn, $data->propertySchedule);
 
                     $task->update([
                         'scheduled_start_at' => $schedule['scheduled_start_at'],
@@ -55,7 +55,7 @@ class UpdateTask
                     ]);
                 } elseif ($task->type === 'checkin_inspection') {
                     $this->validator->validateInspection($data);
-                    $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkIn);
+                    $schedule = $this->cleaningSchedule->calculate($task->type, $data->checkIn, null, $data->propertySchedule);
 
                     $task->update(['scheduled_end_at' => $schedule['scheduled_end_at']]);
                 }

@@ -41,7 +41,7 @@ it('applies role permissions when listing management records', function (
     string $role,
     string $endpoint,
     int $expectedStatus,
-) {
+){
     authenticateApiUser(userWithRole($role));
 
     $this->getJson($endpoint)->assertStatus($expectedStatus);
@@ -61,8 +61,20 @@ it('allows each supported role to query its task scope', function (
 
     $this->getJson('/api/tasks')
         ->assertOk()
-        ->assertExactJson([]);
-})->with(['admin', 'supervisor', 'service_provider']);
+        ->assertJsonCount(0, 'data');
+})->with(['admin', 'supervisor']);
+
+it('limits the provider to its own task routes', function () {
+    $provider = createServiceProvider('provider-routes@example.test');
+
+    authenticateApiUser($provider->user);
+
+    $this->getJson('/api/tasks')->assertForbidden();
+
+    $this->getJson('/api/my/tasks')
+        ->assertOk()
+        ->assertJsonCount(0, 'data');
+});
 
 it('checks authorization before validating an ical upload', function (
     string $role,
@@ -101,15 +113,16 @@ it('restricts providers to their assigned tasks', function () {
 
     authenticateApiUser($ana->user);
 
-    $this->getJson('/api/tasks')
+    $this->getJson('/api/my/tasks')
         ->assertOk()
-        ->assertJsonCount(1)
-        ->assertJsonPath('0.id', $ownTask->id);
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $ownTask->id);
 
-    $this->getJson("/api/tasks/{$ownTask->id}")
-        ->assertOk();
+    $this->getJson("/api/my/tasks/{$ownTask->id}")
+        ->assertOk()
+        ->assertJsonPath('data.id', $ownTask->id);
 
-    $this->getJson("/api/tasks/{$otherTask->id}")
+    $this->getJson("/api/my/tasks/{$otherTask->id}")
         ->assertNotFound();
 });
 

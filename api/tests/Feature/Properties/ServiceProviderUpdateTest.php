@@ -22,8 +22,8 @@ function providerPayload(array $overrides = []): array
 it('updates the account and provider data in one request', function () {
     $provider = createServiceProvider('ana@example.test');
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson("/api/service-providers/{$provider->id}", providerPayload([
+    authenticateApiUser(userWithRole('admin'));
+    $this->putJson("/api/service-providers/{$provider->id}", providerPayload([
             'name' => 'Ana Silva',
             'phone' => '919999999',
         ]))
@@ -42,8 +42,8 @@ it('keeps the current email and password when they are not changed', function ()
     $provider = createServiceProvider('ana@example.test');
     $passwordHash = $provider->user->password;
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson("/api/service-providers/{$provider->id}", providerPayload())
+    authenticateApiUser(userWithRole('admin'));
+    $this->putJson("/api/service-providers/{$provider->id}", providerPayload())
         ->assertOk();
 
     expect($provider->user->fresh()->password)->toBe($passwordHash);
@@ -52,8 +52,8 @@ it('keeps the current email and password when they are not changed', function ()
 it('changes the password only when one is sent', function () {
     $provider = createServiceProvider('ana@example.test');
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson("/api/service-providers/{$provider->id}", providerPayload([
+    authenticateApiUser(userWithRole('admin'));
+    $this->putJson("/api/service-providers/{$provider->id}", providerPayload([
             'password' => 'Nova-Password-1',
         ]))
         ->assertOk();
@@ -65,8 +65,8 @@ it('rejects an email used by another account', function () {
     $provider = createServiceProvider('ana@example.test');
     createServiceProvider('bruno@example.test');
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson("/api/service-providers/{$provider->id}", providerPayload([
+    authenticateApiUser(userWithRole('admin'));
+    $this->putJson("/api/service-providers/{$provider->id}", providerPayload([
             'email' => 'bruno@example.test',
         ]))
         ->assertUnprocessable()
@@ -77,8 +77,8 @@ it('deactivates a provider, revokes tokens and blocks login while keeping the re
     $provider = createServiceProvider('ana@example.test');
     $provider->user->createToken('mobile');
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->patchJson("/api/service-providers/{$provider->id}/deactivate")
+    authenticateApiUser(userWithRole('admin'));
+    $this->patchJson("/api/service-providers/{$provider->id}/deactivate")
         ->assertOk()
         ->assertJsonPath('data.is_active', false);
 
@@ -95,8 +95,8 @@ it('reactivates a provider so the account can log in again', function () {
     $provider = createServiceProvider('ana@example.test');
     $provider->user->update(['is_active' => false]);
 
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->patchJson("/api/service-providers/{$provider->id}/activate")
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->patchJson("/api/service-providers/{$provider->id}/activate")
         ->assertOk()
         ->assertJsonPath('data.is_active', true);
 

@@ -7,6 +7,7 @@ namespace App\Modules\Reservations\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Properties\Models\Property;
 use App\Modules\Reservations\Http\Requests\StoreBookingSourceRequest;
+use App\Modules\Reservations\Http\Requests\UpdateBookingSourceRequest;
 use App\Modules\Reservations\Http\Resources\BookingSourceResource;
 use App\Modules\Reservations\Models\BookingSource;
 use Illuminate\Http\JsonResponse;
@@ -24,9 +25,11 @@ final class BookingSourceController extends Controller
     public function index(Request $request, Property $property): AnonymousResourceCollection
     {
         abort_unless($request->user()->hasRole('admin', 'supervisor'), 403);
-
         return BookingSourceResource::collection(
-            BookingSource::where('property_id', $property->id)->orderBy('id')->get(),
+            BookingSource::where('property_id', $property->id)
+                ->with(BookingSourceResource::RELATIONS)
+                ->orderBy('id')
+                ->get(),
         );
     }
 
@@ -40,9 +43,16 @@ final class BookingSourceController extends Controller
             'is_active' => true,
         ]);
 
-        return (new BookingSourceResource($source))
+        return (new BookingSourceResource($source->load(BookingSourceResource::RELATIONS)))
             ->response()
             ->setStatusCode(201);
+    }
+
+        public function update(UpdateBookingSourceRequest $request, BookingSource $bookingSource): BookingSourceResource
+    {
+        $bookingSource->update($request->validated());
+
+        return new BookingSourceResource($bookingSource->load(BookingSourceResource::RELATIONS));
     }
 
         public function sync(Request $request, BookingSource $bookingSource, IcalSyncService $syncService): JsonResponse

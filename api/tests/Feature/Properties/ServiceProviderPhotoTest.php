@@ -15,8 +15,8 @@ beforeEach(function () {
 it('uploads a photo and returns a signed link that serves it', function () {
     $provider = createServiceProvider('ana@example.test');
 
-    $response = $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->post("/api/service-providers/{$provider->id}/photo", [
+    $response = authenticateApiUser(userWithRole('admin'));
+    $this->post("/api/service-providers/{$provider->id}/photo", [
             'photo' => UploadedFile::fake()->create('ana.jpg', 100, 'image/jpeg'),
         ], ['Accept' => 'application/json'])
         ->assertOk();
@@ -70,8 +70,8 @@ it('rejects files that are not allowed images', function () {
 it('forbids a prestador from uploading photos', function () {
     $provider = createServiceProvider('ana@example.test');
 
-    $this->actingAs($provider->user, 'sanctum')
-        ->post("/api/service-providers/{$provider->id}/photo", [
+    authenticateApiUser($provider->user);
+    $this->post("/api/service-providers/{$provider->id}/photo", [
             'photo' => UploadedFile::fake()->create('ana.jpg', 100, 'image/jpeg'),
         ], ['Accept' => 'application/json'])
         ->assertForbidden();

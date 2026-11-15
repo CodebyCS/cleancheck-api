@@ -84,18 +84,18 @@ it('revokes the old provider access after reassignment and preserves prior imped
     $task = impedimentTask($a->id);
     authenticateApiUser($a->user);
     $this->postJson("/api/tasks/{$task->id}/impediments", impedimentBody())->assertCreated();
-    $this->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
-    $this->getJson("/api/tasks/{$task->id}")->assertOk()->assertJsonPath('id', $task->id);
+    $this->getJson('/api/my/tasks')->assertOk()->assertJsonCount(1, 'data');
+    $this->getJson("/api/my/tasks/{$task->id}")->assertOk()->assertJsonPath('data.id', $task->id);
     authenticateApiUser(userWithRole('admin'));
     $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $b->id])->assertOk();
     authenticateApiUser($a->user);
     $this->postJson("/api/tasks/{$task->id}/impediments", impedimentBody('cccccccc-cccc-4ccc-8ccc-cccccccccccc'))->assertForbidden();
-    $this->getJson('/api/tasks')->assertOk()->assertExactJson([]);
-    $this->getJson("/api/tasks/{$task->id}")->assertNotFound();
+    $this->getJson('/api/my/tasks')->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson("/api/my/tasks/{$task->id}")->assertNotFound();
     authenticateApiUser($b->user);
     $this->postJson("/api/tasks/{$task->id}/impediments", impedimentBody('dddddddd-dddd-4ddd-8ddd-dddddddddddd'))->assertCreated();
-    $this->getJson('/api/tasks')->assertOk()->assertJsonCount(1);
-    $this->getJson("/api/tasks/{$task->id}")->assertOk()->assertJsonPath('id', $task->id);
+    $this->getJson('/api/my/tasks')->assertOk()->assertJsonCount(1, 'data');
+    $this->getJson("/api/my/tasks/{$task->id}")->assertOk()->assertJsonPath('data.id', $task->id);
     $records = $task->impediments()->orderBy('id')->get();
     expect($records)->toHaveCount(2)->and($records[0]->user_id)->toBe($a->user_id)
         ->and($records[1]->user_id)->toBe($b->user_id)->and($task->assignmentHistory()->count())->toBe(1);
@@ -122,8 +122,8 @@ it('currently accepts impediments on completed and cancelled tasks while assigne
         ->and($task->impediments()->count())->toBe(1);
 })->with(['completed', 'cancelled']);
 
-it('keeps the existing empty tasks response as an array', function () {
+it('returns an empty paginated list when the provider has no tasks', function () {
     $provider = impedimentProvider();
     authenticateApiUser($provider->user);
-    $this->getJson('/api/tasks')->assertOk()->assertExactJson([]);
+    $this->getJson('/api/my/tasks')->assertOk()->assertJsonCount(0, 'data');
 });

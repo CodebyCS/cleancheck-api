@@ -4,12 +4,18 @@ namespace App\Modules\Tasks\Infrastructure;
 
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Tasks\Contracts\BookingDataProvider;
+use App\Modules\Tasks\Contracts\PropertyScheduleProvider;
 use App\Modules\Tasks\Support\BookingSnapshot;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use App\Modules\Reservations\Enums\ReservationStatus;
 
 class EloquentBookingDataProvider implements BookingDataProvider
 {
+    public function __construct(
+        private PropertyScheduleProvider $propertySchedules,
+    ) {}
+
     public function find(int $bookingId): ?BookingSnapshot
     {
         $booking = Booking::with('bookingSource')
@@ -22,6 +28,9 @@ class EloquentBookingDataProvider implements BookingDataProvider
 
         $propertyId = $booking->bookingSource?->property_id;
 
+        // The property is read by id so the Tasks module does not depend on the Properties models.
+        $propertyActive = $propertyId !== null && (bool) DB::table('properties')->where('id', $propertyId)->value('is_active');
+
         $checkIn  = $booking->overridden_check_in_at ?? $booking->source_check_in_at;
         $checkOut = $booking->overridden_check_out_at ?? $booking->source_check_out_at;
 
@@ -31,6 +40,8 @@ class EloquentBookingDataProvider implements BookingDataProvider
             checkIn: $checkIn ? Carbon::parse($checkIn) : null,
             checkOut: $checkOut ? Carbon::parse($checkOut) : null,
             nextCheckIn: ($propertyId && $checkOut) ? $this->findNextCheckIn($booking->id, $propertyId, Carbon::parse($checkOut)) : null,
+            propertyActive: $propertyActive,
+            propertySchedule: $propertyId ? $this->propertySchedules->find($propertyId) : null,
         );
     }
 
