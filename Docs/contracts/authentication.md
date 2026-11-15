@@ -204,7 +204,7 @@ Devolve HTTP 204 quando a sessão é localizada e revogada. Uma credencial desco
 
 ### Armazenamento no cliente
 
-As credenciais mobile devem ser guardadas no Expo SecureStore.
+A API emite e renova os tokens mobile. A renovação da API foi validada no Postman.
 
 A integração do armazenamento, rotação e utilização dos refresh tokens no cliente mobile continua pendente. A disponibilidade das rotas na API não significa que a aplicação já execute esse fluxo.
 
@@ -277,18 +277,34 @@ Testes automatizados associados:
 - `MobileAuthHttpTest`: contrato HTTP de login, renovação e logout.
 - `WebSessionLifetimeTest`: prazos web, expiração e conta inativa.
 
-Nas execuções registadas, os três ficheiros mobile passaram com 17 testes e 90 assertions; o ficheiro web passou com 5 testes e 21 assertions. A execução conjunta deve ser registada na PR.
+Nas execuções registadas, os testes mobile passaram com 17 testes e 90 assertions, e os testes web com 5 testes e 21 assertions. A execução conjunta registada passou com 23 testes e 117 assertions. Estes resultados não representam aprovação da suite completa dos módulos.
 
-No Postman, foram confirmados login, renovação, utilização do novo token de acesso e preservação de `refresh_expires_at`.
+### Validação manual web
 
-Estes resultados não representam aprovação da suite completa dos módulos nem validação concluída dos fluxos novos nos clientes.
+Foram testados o login, a recuperação da sessão após atualizar a página, o logout e o comportamento de “Lembrar-me”. O PR web regista também os testes de sessão expirada, resposta `401` e acesso recusado com `403`.
+
+### Validação manual da API mobile — Postman
+
+- `POST /api/mobile/login`, com “Lembrar-me”: `200 OK`; identidade e perfil devolvidos corretamente.
+- `GET /api/user`, com o token de acesso: `200 OK`.
+- `POST /api/mobile/refresh`: `200 OK`; foram emitidos novos tokens e `refresh_expires_at` manteve-se.
+- `GET /api/user`, com o novo token de acesso: `200 OK`.
+- `POST /api/mobile/logout`: `204 No Content`.
+- `GET /api/user`, com o token revogado: `401 Unauthorized`.
+
+Estes testes validam os endpoints da API. A renovação automática ainda precisa de ser testada no app mobile.
+
+### PRs relacionados
+
+- API: [cleancheck-api #63](https://github.com/CodebyCS/cleancheck-api/pull/63)
+- Web: [cleancheck-web #24](https://github.com/CodebyCS/cleancheck-web/pull/24)
+
+O PR mobile que integrar e validar a renovação automática deve ser acrescentado aqui quando existir.
 
 ## Pendências de integração
 
-- Integrar refresh tokens e logout por refresh no cliente mobile.
-- Validar “Lembrar-me” e tratamento de expiração no navegador.
+- Integrar e validar no app mobile o armazenamento e a renovação dos refresh tokens.
 - Adaptar os testes dos módulos à preparação comum de credenciais válidas.
-- Confirmar a matriz de permissões e a sua aplicação por cada responsável.
 - Rever os limites de pedidos conforme o requisito acordado com o professor.
 
 Credenciais utilizáveis, cookies e tokens reais não devem ser incluídos neste documento, em logs de aplicação ou nas evidências publicadas.
@@ -308,7 +324,7 @@ Credenciais utilizáveis, cookies e tokens reais não devem ser incluídos neste
 
 Sem autenticação válida ou com conta inativa, as rotas protegidas devolvem 401.
 
-O Supervisor tem atualmente o mesmo âmbito do Administrador nas operações desta matriz. Esta descrição regista o comportamento implementado e deve ser confirmada pela equipa.
+O Supervisor tem atualmente o mesmo âmbito do Administrador nas operações descritas.
 
 A consulta de fotografias utiliza uma rota com assinatura temporária; não exige Bearer no download. A emissão do endereço assinado está sujeita à autorização do utilizador.
 
@@ -326,3 +342,14 @@ Verificados:
 - Atribuição de tarefas por admin e supervisor.
 - Rejeição de alterações de tarefas por prestadores.
 - Rejeição de pedidos sem autenticação.
+
+### Validação manual mobile — Postman
+
+- `POST /api/mobile/login`, com “Lembrar-me”: `200 OK`; identidade e perfil devolvidos corretamente.
+- `GET /api/user`, com o token de acesso: `200 OK`.
+- `POST /api/mobile/refresh`: `200 OK`; foram emitidos novos tokens e `refresh_expires_at` manteve-se.
+- `GET /api/user`, com o novo token de acesso: `200 OK`.
+- `POST /api/mobile/logout`: `204 No Content`.
+- `GET /api/user`, com o token revogado: `401 Unauthorized`.
+
+Nenhum token, password ou cookie foi incluído nesta documentação.
