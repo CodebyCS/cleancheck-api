@@ -10,6 +10,34 @@ A lista do prestador inclui apenas tarefas atualmente atribuídas ao seu perfil.
 
 A ordenação é ascendente por `scheduled_start_at`, com `id` como desempate. A lista aceita os filtros opcionais comuns `from`, `to`, `property_id`, `status`, `type` e `per_page`; `from` e `to` filtram a data de início agendada. `per_page` aceita de 1 a 100 itens e o padrão é 15. O filtro `deleted` não é permitido para prestadores. O mobile agrupa os itens em “Hoje” e “Próximas” usando `scheduled_start_at`, sem alterar o formato da resposta da API.
 
+## Validação da agenda e dos impedimentos
+
+### Testes automatizados executados
+
+Executados com SQLite em memória, sem usar a base de dados de desenvolvimento:
+
+```powershell
+$env:DB_CONNECTION = 'sqlite'
+$env:DB_DATABASE = ':memory:'
+php vendor/bin/pest --no-configuration tests/Feature/Tasks/ProviderTaskListTest.php tests/Feature/Tasks/TaskProviderVisibilityTest.php tests/Feature/Tasks/TaskStaffListAuthorizationTest.php tests/Feature/Tasks/TaskAssignmentTest.php tests/Feature/Tasks/TaskImpedimentTest.php
+```
+
+Resultado: **47 testes passaram, 235 verificações**. A cobertura inclui lista vazia, autorização por perfil, acesso apenas às tarefas atribuídas, perda/ganho de acesso após reatribuição, registo de impedimento pelo prestador atual, preservação da autoria e do histórico, erros de autenticação/autorização/validação e retries idempotentes. O runner mostrou um aviso de permissão ao escrever o histórico local do Pest; não afetou o resultado dos testes.
+
+### Demonstração manual entre colegas — pendente
+
+Executar no mobile com a API ligada e duas contas ativas de prestador (A e B), mais uma conta de Administrador ou Supervisor:
+
+1. Usar uma tarefa `pending` atribuída ao prestador A. Iniciar sessão como A, atualizar a agenda, confirmar que a tarefa aparece e abrir o detalhe.
+2. Registar um impedimento pela app e confirmar a mensagem de sucesso.
+3. Como Administrador/Supervisor, reatribuir a tarefa de A para B através de `PATCH /api/tasks/{task}` com `{"service_provider_id": <id de B>}`.
+4. Atualizar a agenda de A: a tarefa deve desaparecer. Tentar abrir o detalhe da tarefa; a API deve recusar o acesso (`404`).
+5. Iniciar sessão como B, atualizar a agenda, confirmar que a tarefa aparece e abrir o detalhe. Registar um novo impedimento; a API deve aceitá-lo.
+6. Registar quem executou o percurso, a data, o resultado de cada passo e eventuais erros. Não incluir palavras-passe, tokens ou outros segredos na evidência.
+7. Para validar recuperação de envio no mobile, interromper a rede durante um envio de impedimento, voltar a ligar e repetir o envio. Confirmar que o retry usa a mesma chave e não cria um segundo registo.
+
+O percurso manual e a sua repetição por outro colega ainda não foram executados neste ambiente; os testes automatizados da API não substituem essa demonstração no mobile.
+
 ## Registar impedimento
 
 `POST /api/tasks/{task}/impediments` exige autenticação, conta ativa e perfil `service_provider`. Só o prestador atualmente atribuído pode criar o registo.
