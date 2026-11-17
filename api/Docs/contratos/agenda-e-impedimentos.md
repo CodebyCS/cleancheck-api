@@ -2,7 +2,13 @@
 
 ## Agenda
 
-A agenda reutiliza `GET /api/tasks`, sem alterar os campos atuais nem adicionar filtros nesta entrega. O mobile agrupa as tarefas em “Hoje” e “Próximas” a partir de `scheduled_start_at`. A API ordena por `scheduled_start_at`, limita os resultados do perfil `service_provider` às tarefas atualmente atribuídas ao utilizador e devolve `[]` quando não há tarefas. Após reatribuição, o prestador anterior deixa de ver a tarefa e o novo passa a vê-la.
+O mobile consulta a agenda do prestador autenticado através de `GET /api/my/tasks`. `GET /api/tasks` é a rota de gestão para Administradores e Supervisores; não é a rota do prestador. Ambos os endpoints exigem autenticação e conta ativa.
+
+`GET /api/my/tasks` devolve uma coleção paginada Laravel: os itens estão em `data`, com informação de paginação em `links` e `meta`. Quando o prestador não tem tarefas, `data` é um array vazio (`[]`), mantendo o invólucro paginado. Cada item segue o recurso do prestador e inclui `id`, `property`, `property_address`, `access_instructions`, `type`, `scheduled_start_at`, `scheduled_end_at`, `is_overdue`, `status`, `started_at`, `completed_at` e `provider_notes`.
+
+A lista do prestador inclui apenas tarefas atualmente atribuídas ao seu perfil. O detalhe `GET /api/my/tasks/{task}` aplica a mesma autorização e responde `404` se a tarefa não existir ou já não estiver atribuída ao prestador. Após reatribuição, o prestador anterior deixa de a receber e de lhe aceder; o novo prestador passa a recebê-la e a aceder-lhe.
+
+A ordenação é ascendente por `scheduled_start_at`, com `id` como desempate. A lista aceita os filtros opcionais comuns `from`, `to`, `property_id`, `status`, `type` e `per_page`; `from` e `to` filtram a data de início agendada. `per_page` aceita de 1 a 100 itens e o padrão é 15. O filtro `deleted` não é permitido para prestadores. O mobile agrupa os itens em “Hoje” e “Próximas” usando `scheduled_start_at`, sem alterar o formato da resposta da API.
 
 ## Registar impedimento
 
