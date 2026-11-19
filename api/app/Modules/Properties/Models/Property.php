@@ -11,6 +11,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'address',
     'postal_code',
     'city',
+    'zone_id',
+    'latitude',
+    'longitude',
     'access_instructions',
     'responsible_service_provider_id',
     'base_cleaning_amount',
@@ -42,7 +45,14 @@ class Property extends Model
         return [
             'is_active' => 'boolean',
             'base_cleaning_amount' => 'decimal:2',
+            'latitude' => 'decimal:6',
+            'longitude' => 'decimal:6',
         ];
+    }
+
+    public function zone(): BelongsTo
+    {
+        return $this->belongsTo(Zone::class);
     }
 
     public function responsibleServiceProvider(): BelongsTo
