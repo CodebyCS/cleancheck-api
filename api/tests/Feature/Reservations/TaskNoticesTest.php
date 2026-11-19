@@ -97,3 +97,32 @@ it('leaves a cancelled booking to the booking notice', function () {
 
     expect(taskNoticeTypes($this->oldProvider->user_id))->toBe(['booking_cancelled']);
 });
+
+it('lists a task notice with the stay dates and the task schedule', function () {
+    reassignForNotice($this->task->id, $this->newProvider->id, $this->admin->id);
+
+    authenticateApiUser($this->newProvider->user);
+
+    $this->getJson('/api/booking-notices')
+        ->assertOk()
+        ->assertJsonPath('data.0.type', 'task_assigned')
+        ->assertJsonPath('data.0.booking.checkIn', '2026-11-02')
+        ->assertJsonPath('data.0.booking.checkOut', '2026-11-05')
+        ->assertJsonPath('data.0.property.name', 'Casa Teste iCal')
+        ->assertJsonPath('data.0.task.id', $this->task->id)
+        ->assertJsonPath('data.0.task.available', true)
+        ->assertJsonPath('data.0.task.scheduledStart', $this->task->fresh()->scheduled_start_at->toIso8601String());
+});
+
+it('shows the previous provider the change without opening the task', function () {
+    reassignForNotice($this->task->id, $this->newProvider->id, $this->admin->id);
+
+    authenticateApiUser($this->oldProvider->user);
+
+    $this->getJson('/api/booking-notices')
+        ->assertOk()
+        ->assertJsonPath('data.0.type', 'task_unassigned')
+        ->assertJsonPath('data.0.task.available', false);
+
+    $this->getJson("/api/my/tasks/{$this->task->id}")->assertNotFound();
+});
