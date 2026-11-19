@@ -11,6 +11,7 @@ use App\Modules\Reservations\Http\Controllers\IcalImportController;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
 use App\Modules\Reservations\Http\Controllers\BookingSourceController;
 use App\Modules\Reservations\Http\Controllers\BookingController;
+use App\Modules\Reservations\Http\Controllers\BookingNoticeController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
 use App\Modules\Tasks\Http\Controllers\TaskImpedimentController;
 use App\Modules\Tasks\Http\Controllers\ProviderTaskController;
@@ -60,6 +61,13 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
     });
 
     Route::get('/profile', [ProfileController::class, 'show']);
+    
+    // Booking notices: every user reads only their own.
+    Route::get('/booking-notices', [BookingNoticeController::class, 'index']);
+    Route::get('/booking-notices/{notice}', [BookingNoticeController::class, 'show'])
+        ->whereNumber('notice');
+    Route::patch('/booking-notices/{notice}/read', [BookingNoticeController::class, 'markAsRead'])
+        ->whereNumber('notice');
 
     // Admin and Supervisor roles are allowed to access management routes.
     Route::middleware('role:admin,supervisor')->group(function (): void {
@@ -108,6 +116,8 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
     Route::post('/properties/{property}/booking-sources', [BookingSourceController::class, 'store'])
         ->whereNumber('property');
     Route::post('/booking-sources/{bookingSource}/sync', [BookingSourceController::class, 'sync'])
+        ->whereNumber('bookingSource');
+    Route::patch('/booking-sources/{bookingSource}', [BookingSourceController::class, 'update'])
         ->whereNumber('bookingSource');
 
     Route::get('/service-providers', [ServiceProviderController::class, 'index']);
