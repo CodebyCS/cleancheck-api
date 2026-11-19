@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Task;
+use App\Models\TaskCancellationHistory;
+use App\Models\User;
 use App\Modules\Tasks\Actions\CancelTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -63,15 +65,21 @@ function makeTaskForCancellationTest(
 it('marks a pending task as cancelled and soft deletes it when cancelled manually', function () {
     $bookingId = makeBookingForCancellationTest();
     $task = makeTaskForCancellationTest($bookingId);
+    $actor = User::factory()->create();
 
-    app(CancelTask::class)->manual($task->id);
+    app(CancelTask::class)->manual($task->id, $actor->id);
+
     $cancelledTask = Task::withTrashed()->findOrFail($task->id);
+    $history = TaskCancellationHistory::where('task_id', $task->id)->firstOrFail();
 
     expect($cancelledTask->status)->toBe('cancelled')
-        ->and($cancelledTask->deleted_at)->not->toBeNull();
+        ->and($cancelledTask->deleted_at)->not->toBeNull()
+        ->and($history->source)->toBe('manual')
+        ->and($history->user_id)->toBe($actor->id);
 
     $this->assertSoftDeleted('tasks', ['id' => $task->id]);
 });
+
 
 it('treats repeating a manual cancellation as a no-op without changing deleted_at', function () {
     $bookingId = makeBookingForCancellationTest();
@@ -87,7 +95,9 @@ it('treats repeating a manual cancellation as a no-op without changing deleted_a
     $cancelledTask = Task::withTrashed()->findOrFail($task->id);
 
     expect($cancelledTask->status)->toBe('cancelled')
-        ->and($cancelledTask->deleted_at->equalTo($deletedAt))->toBeTrue();
+        ->and($cancelledTask->deleted_at->equalTo($deletedAt))->toBeTrue()
+        ->and(TaskCancellationHistory::where('task_id', $task->id)->count())->toBe(1);
+
 });
 
 it('does not convert a task previously soft deleted by another operation into cancelled', function () {
@@ -152,4 +162,29 @@ it('cancels pending tasks from a booking and preserves in-progress and completed
         ->and($completedTask->fresh()->deleted_at)->toBeNull();
 
     $this->assertSoftDeleted('tasks', ['id' => $pendingTask->id]);
+});
+
+it('records property deactivation as the cancellation source without duplicating history', function () {
+    $bookingId = makeBookingForCancellationTest();
+    $task = makeTaskForCancellationTest($bookingId);
+
+    $propertyId = DB::table('bookings')
+        ->join('booking_sources', 'bookings.booking_source_id', '=', 'booking_sources.id')
+        ->where('bookings.id', $bookingId)
+        ->value('booking_sources.property_id');
+
+    DB::table('properties')
+        ->where('id', $propertyId)
+        ->update(['is_active' => false]);
+
+    $action = app(CancelTask::class);
+    $action->forProperty($propertyId);
+    $action->forProperty($propertyId);
+
+    $history = TaskCancellationHistory::where('task_id', $task->id)->firstOrFail();
+
+    expect($task->fresh()->status)->toBe('cancelled')
+        ->and($history->source)->toBe('property_deactivated')
+        ->and($history->user_id)->toBeNull()
+        ->and(TaskCancellationHistory::where('task_id', $task->id)->count())->toBe(1);
 });

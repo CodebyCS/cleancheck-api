@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Task;
+use App\Models\TaskCancellationHistory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -12,8 +13,11 @@ uses(RefreshDatabase::class);
  * $checkOutInDays controls when the reservation ends (negative = already ended).
  * $bookingStatus is the reservation status ('reserved' is the only one the Tasks module accepts).
  */
-function makeEndpointTask(array $overrides = [], int $checkOutInDays = 5, string $bookingStatus = 'reserved'): Task
-{
+function makeEndpointTask(
+    array $overrides = [],
+    int $checkOutInDays = 5,
+    string $bookingStatus = 'reserved',
+): Task {
     $now = now();
 
     $propertyId = DB::table('properties')->insertGetId([
@@ -58,16 +62,20 @@ function makeEndpointTask(array $overrides = [], int $checkOutInDays = 5, string
 
 it('cancels a pending task through the endpoint', function () {
     $task = makeEndpointTask();
+    $actor = userWithRole('admin');
 
-    authenticateApiUser(userWithRole('admin'));
+    authenticateApiUser($actor);
 
     $this->postJson("/api/tasks/{$task->id}/cancel")
         ->assertNoContent();
 
     $cancelled = Task::withTrashed()->findOrFail($task->id);
+    $history = TaskCancellationHistory::where('task_id', $task->id)->firstOrFail();
 
     expect($cancelled->status)->toBe('cancelled')
-        ->and($cancelled->deleted_at)->not->toBeNull();
+        ->and($cancelled->deleted_at)->not->toBeNull()
+        ->and($history->source)->toBe('manual')
+        ->and($history->user_id)->toBe($actor->id);
 });
 
 it('treats repeating the cancel request as a success without changing deleted_at', function () {
@@ -82,7 +90,8 @@ it('treats repeating the cancel request as a success without changing deleted_at
 
     $this->postJson("/api/tasks/{$task->id}/cancel")->assertNoContent();
 
-    expect(Task::withTrashed()->findOrFail($task->id)->deleted_at->equalTo($deletedAt))->toBeTrue();
+    expect(Task::withTrashed()->findOrFail($task->id)->deleted_at->equalTo($deletedAt))->toBeTrue()
+        ->and(TaskCancellationHistory::where('task_id', $task->id)->count())->toBe(1);
 });
 
 it('rejects cancelling tasks that are in progress or completed', function (string $status) {
@@ -183,7 +192,6 @@ it('restores a cancelled task as pending with cleared execution timestamps', fun
     $this->postJson("/api/tasks/{$task->id}/cancel")->assertNoContent();
     $this->postJson("/api/tasks/{$task->id}/restore")->assertOk();
 
-    // The default scope hides deleted tasks, so finding it proves it was restored.
     $restored = Task::findOrFail($task->id);
 
     expect($restored->status)->toBe('pending')

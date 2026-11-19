@@ -3,6 +3,7 @@
 namespace App\Modules\Tasks\Actions;
 
 use App\Models\Task;
+use App\Models\TaskCancellationHistory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -33,8 +34,7 @@ class CancelTask
                     continue;
                 }
 
-                // The booking notice already tells the provider; no second notice for the same change.
-                $this->cancelAndSoftDelete($task, announce: false);
+                $this->cancelAndSoftDelete($task, 'booking_cancelled', null, false);
             }
         });
     }
@@ -63,15 +63,15 @@ class CancelTask
                 ->get();
 
             foreach ($tasks as $task) {
-                $this->cancelAndSoftDelete($task);
+                $this->cancelAndSoftDelete($task, 'property_deactivated');
             }
         });
     }
 
     /** Manually cancel a task on behalf of the team. */
-    public function manual(int $taskId): void
+    public function manual(int $taskId, ?int $userId = null): void
     {
-        DB::transaction(function () use ($taskId): void {
+        DB::transaction(function () use ($taskId, $userId): void {
             $task = Task::withTrashed()
                 ->lockForUpdate()
                 ->findOrFail($taskId);
@@ -94,11 +94,16 @@ class CancelTask
                 ]);
             }
 
-            $this->cancelAndSoftDelete($task);
+            $this->cancelAndSoftDelete($task, 'manual', $userId);
         });
     }
 
-    private function cancelAndSoftDelete(Task $task, bool $announce = true): void
+    private function cancelAndSoftDelete(
+        Task $task,
+        string $source,
+        ?int $userId = null,
+        bool $announce = true
+    ): void
     {
         if ($task->status !== 'cancelled') {
             $task->status = 'cancelled';
@@ -115,5 +120,11 @@ class CancelTask
         if (! $task->trashed()) {
             $task->delete();
         }
+
+        TaskCancellationHistory::create([
+            'task_id' => $task->id,
+            'source' => $source,
+            'user_id' => $userId,
+        ]);
     }
 }

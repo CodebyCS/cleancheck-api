@@ -119,7 +119,7 @@ Lista paginada, ordenada por `scheduled_start_at` e depois por `id`. Filtros opc
 | `deleted` | `only`: devolve só as tasks apagadas (incluindo as canceladas). Por defeito, as apagadas não aparecem |
 | `per_page` | 1 a 100, por defeito 15 |
 
-Cada elemento: `id`, `booking_id`, `property`, `property_address`, `type`, `scheduled_start_at`, `scheduled_end_at`, `is_overdue`, `service_provider_id`, `service_provider` (nome do prestador), `agreed_amount`, `status`, `completed_at`, `completed_by` (nome de quem concluiu), `deleted_at`, `notes` e `provider_notes`.
+Cada elemento: `id`, `booking_id`, `property`, `property_address`, `type`, `scheduled_start_at`, `scheduled_end_at`, `started_at`, `is_overdue`, `service_provider_id`, `service_provider` (nome do prestador), `agreed_amount`, `status`, `completed_at`, `completed_by` (nome de quem concluiu), `updated_at`, `deleted_at`, `notes` e `provider_notes`.
 
 #### `GET /api/tasks/{id}` (admin e supervisor)
 
@@ -316,7 +316,6 @@ POST /api/tasks
 Resultado: `type` `checkin_inspection`, `status` `pending`, `scheduled_start_at` 10/10/2026 09:00 e `scheduled_end_at` 15/10/2026 14:30.
 
 ### 9.4 Resposta de `GET /api/tasks` (staff)
-
 ```json
 {
   "data": [
@@ -328,11 +327,15 @@ Resultado: `type` `checkin_inspection`, `status` `pending`, `scheduled_start_at`
       "type": "checkout_cleaning",
       "scheduled_start_at": "2026-10-20T11:30:00.000000Z",
       "scheduled_end_at": "2026-10-22T14:30:00.000000Z",
+      "started_at": null,
       "is_overdue": false,
       "service_provider_id": 7,
       "service_provider": "Maria Exemplo",
       "agreed_amount": "45.00",
       "status": "pending",
+      "completed_at": null,
+      "completed_by": null,
+      "updated_at": "2026-10-20T09:00:00.000000Z",
       "deleted_at": null
     }
   ],

@@ -48,13 +48,29 @@ function makeStaffQueryTask(string $externalUid): Task
 
 it('allows administrators and supervisors to list staff tasks', function (string $role) {
     $task = makeStaffQueryTask('staff-list-' . $role);
+    $task->forceFill(['started_at' => now()->subMinute()])->save();
 
     authenticateApiUser(userWithRole($role));
 
-    $this->getJson('/api/tasks')
+    $response = $this->getJson('/api/tasks')
         ->assertOk()
         ->assertJsonPath('data.0.id', $task->id);
+
+    expect($response->json('data.0.started_at'))
+        ->not->toBeNull()
+        ->and($response->json('data.0.updated_at'))
+        ->not->toBeNull();
+
+    $detail = $this->getJson("/api/tasks/{$task->id}")
+        ->assertOk()
+        ->assertJsonPath('data.id', $task->id);
+
+    expect($detail->json('data.started_at'))
+        ->not->toBeNull()
+        ->and($detail->json('data.updated_at'))
+        ->not->toBeNull();
 })->with(['admin', 'supervisor']);
+
 
 it('returns only soft-deleted tasks when staff requests deleted only', function () {
     $activeTask = makeStaffQueryTask('staff-list-active');
