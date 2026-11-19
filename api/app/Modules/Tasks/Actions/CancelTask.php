@@ -6,6 +6,7 @@ use App\Models\Task;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use App\Modules\Tasks\Events\TaskCancelled;
 
 class CancelTask
 {
@@ -32,7 +33,8 @@ class CancelTask
                     continue;
                 }
 
-                $this->cancelAndSoftDelete($task);
+                // The booking notice already tells the provider; no second notice for the same change.
+                $this->cancelAndSoftDelete($task, announce: false);
             }
         });
     }
@@ -96,11 +98,18 @@ class CancelTask
         });
     }
 
-    private function cancelAndSoftDelete(Task $task): void
+    private function cancelAndSoftDelete(Task $task, bool $announce = true): void
     {
         if ($task->status !== 'cancelled') {
             $task->status = 'cancelled';
             $task->save();
+
+            if ($announce) {
+                TaskCancelled::dispatch(
+                    $task->id,
+                    $task->service_provider_id === null ? null : (int) $task->service_provider_id,
+                );
+            }
         }
 
         if (! $task->trashed()) {
