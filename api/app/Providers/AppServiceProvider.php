@@ -21,6 +21,9 @@ use App\Modules\Reservations\Events\BookingUpdated;
 use App\Modules\Reservations\Events\BookingCancelled;
 use App\Modules\Reservations\Events\BookingDeleted;
 use App\Modules\Reservations\Events\BookingImported;
+use App\Modules\Reservations\Listeners\RecordNoticesOnTaskChange;
+use App\Modules\Tasks\Events\TaskAssigned;
+use App\Modules\Tasks\Events\TaskCancelled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -52,5 +55,8 @@ class AppServiceProvider extends ServiceProvider
         // Affected users get an internal notice.
         Event::listen(BookingUpdated::class, RecordNoticesOnBookingUpdated::class);
         Event::listen(BookingCancelled::class, RecordNoticesOnBookingCancelled::class);
+
+        Event::listen(TaskAssigned::class, [RecordNoticesOnTaskChange::class, 'handleAssigned']);
+        Event::listen(TaskCancelled::class, [RecordNoticesOnTaskChange::class, 'handleCancelled']);
     }
 }

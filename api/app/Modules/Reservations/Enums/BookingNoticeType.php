@@ -8,4 +8,7 @@ enum BookingNoticeType: string
 {
     case BookingUpdated = 'booking_updated';
     case BookingCancelled = 'booking_cancelled';
+    case TaskAssigned = 'task_assigned';
+    case TaskUnassigned = 'task_unassigned';
+    case TaskCancelled = 'task_cancelled';
 }

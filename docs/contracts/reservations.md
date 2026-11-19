@@ -262,25 +262,29 @@ Conta ativa com perfil `admin` ou `supervisor` (grupo `role:admin,supervisor`) �
 
 ## Avisos internos
 
-Cada alteração ou cancelamento de uma reserva gera um aviso para quem é afetado.
+Cada alteração de uma reserva ou de uma tarefa gera um aviso para quem é afetado.
 
 ### Quem recebe
 
-| Destinatário | Ligação à tarefa |
-|---|---|
-| Prestador de cada tarefa da reserva | `task` com o id da tarefa |
-| Todos os supervisores | `task: null` |
-| Todos os admins | `task: null` |
+| Origem | `type` | Destinatário | `task` |
+|---|---|---|---|
+| Reserva com datas alteradas | `booking_updated` | Prestador de cada tarefa da reserva | id da tarefa |
+| | | Supervisores e admins | `null` |
+| Reserva cancelada | `booking_cancelled` | Prestador de cada tarefa da reserva | id da tarefa |
+| | | Supervisores e admins | `null` |
+| Tarefa atribuída ou reatribuída | `task_assigned` | Novo prestador | id da tarefa |
+| | `task_unassigned` | Prestador anterior | id da tarefa |
+| Tarefa cancelada pela equipa ou por imóvel desativado | `task_cancelled` | Prestador da tarefa | id da tarefa |
 
-- Só contas ativas.
-- O prestador é avisado mesmo que a tarefa já tenha sido removida por causa do cancelamento.
-- Os avisos são gravados por um listener em fila (`BookingUpdated`, `BookingCancelled`). Em desenvolvimento, é preciso `php artisan queue:work` a correr.
+- Uma tarefa cancelada por causa da reserva gera só `booking_cancelled` (sem `task_cancelled`). O reagendamento vindo da reserva é avisado por `booking_updated`.
+- Os avisos são gravados por listeners em fila (`BookingUpdated`, `BookingCancelled`, `TaskAssigned`, `TaskCancelled`). Em desenvolvimento, é preciso `php artisan queue:work` a correr.
 
 ### Sem duplicação
 
 - Um aviso por pessoa, reserva, tipo e datas efetivas (tabela `booking_notices`, chave única).
 - A mesma alteração repetida não cria outro aviso.
 - Se as datas voltam a umas que já tinham aviso, esse aviso volta a não lido e sobe para o topo (`notifiedAt` atualizado).
+- Avisos de tarefa: um por pessoa e evento de origem (`dedup_key`, por exemplo `task_assignment:{id do histórico}` ou `task_cancelled:{id da tarefa}`). Repetir o mesmo pedido ou o mesmo job não cria outro aviso nem o volta a pôr como não lido.
 
 ### Endpoints
 
@@ -311,7 +315,7 @@ Conta ativa, **qualquer perfil** · JSON · cada pessoa vê só os seus avisos. 
         "checkOut": "2026-11-06"
       },
       "property": { "id": 1, "name": "Casa Teste iCal" },
-      "task": { "id": 7, "available": true }
+      "task": { "id": 7, "available": true, "scheduledStart": null, "scheduledEnd": null }
     }
   ],
   "links": { "first": "...", "last": "...", "prev": null, "next": null },
@@ -320,8 +324,9 @@ Conta ativa, **qualquer perfil** · JSON · cada pessoa vê só os seus avisos. 
 ```
 
 - Ordenados do mais recente para o mais antigo (`notifiedAt`).
-- `type`: `booking_updated` ou `booking_cancelled`.
-- `booking.checkIn` / `checkOut`: datas efetivas **no momento do aviso** (não as atuais).
+- `type`: `booking_updated`, `booking_cancelled`, `task_assigned`, `task_unassigned` ou `task_cancelled`.
+- `booking.checkIn` / `checkOut`: nos avisos de reserva, as datas efetivas **no momento do aviso**; nos avisos de tarefa, as datas atuais da reserva.
+- `task.scheduledStart` / `scheduledEnd`: horário da tarefa no momento do aviso (só avisos de tarefa; nos de reserva vem `null`).
 - `meta.unreadCount`: total de não lidos da pessoa, com ou sem o filtro `unread`.
 
 #### Detalhe

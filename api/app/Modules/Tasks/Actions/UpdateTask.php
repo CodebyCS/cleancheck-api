@@ -6,6 +6,7 @@ use App\Models\Task;
 use App\Modules\Tasks\Contracts\BookingDataProvider;
 use App\Modules\Tasks\Services\CleaningSchedule;
 use App\Modules\Tasks\Validators\TaskGenerationValidator;
+use App\Modules\Tasks\Events\TaskAssigned;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -119,12 +120,19 @@ class UpdateTask
             $task->update($changes);
 
             if ($assignmentChanged) {
-                $task->assignmentHistory()->create([
+                $history = $task->assignmentHistory()->create([
                     'previous_service_provider_id' => $previousProviderId,
                     'new_service_provider_id' => $task->service_provider_id,
                     'user_id' => $userId,
                     'created_at' => now(),
                 ]);
+
+                TaskAssigned::dispatch(
+                    $task->id,
+                    $previousProviderId === null ? null : (int) $previousProviderId,
+                    (int) $task->service_provider_id,
+                    $history->id,
+                );
             }
 
             return $task;
