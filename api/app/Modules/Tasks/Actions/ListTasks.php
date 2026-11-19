@@ -57,11 +57,57 @@ class ListTasks
             ->when($filters['property_id'] ?? null, fn ($q, $id) => $q->where('property_id', $id))
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filters['type'] ?? null, fn ($q, $type) => $q->where('type', $type))
+            ->when(
+                $filters['unassigned'] ?? false,
+                fn ($q) => $q->whereNull('service_provider_id'),
+            )
+            ->when(
+                $filters['overdue'] ?? false,
+                fn ($q) => $q
+                    ->whereIn('status', ['pending', 'in_progress'])
+                    ->whereNotNull('scheduled_end_at')
+                    ->where('scheduled_end_at', '<', now()),
+            )
+            ->when(
+                $filters['in_conflict'] ?? false,
+                fn (Builder $q) => $this->whereProviderConflict($q),
+            )
             ->orderBy('scheduled_start_at')
             ->orderBy('id');
 
         return $query
             ->paginate((int) ($filters['per_page'] ?? self::DEFAULT_PER_PAGE))
             ->withQueryString();
+    }
+
+    private function whereProviderConflict(Builder $query): void
+    {
+        $query
+            ->whereNotNull('tasks.service_provider_id')
+            ->whereIn('tasks.status', ['pending', 'in_progress'])
+            ->whereNotNull('tasks.scheduled_end_at')
+            ->whereExists(function ($subquery) {
+                $subquery
+                    ->selectRaw('1')
+                    ->from('tasks as conflicts')
+                    ->whereColumn(
+                        'conflicts.service_provider_id',
+                        'tasks.service_provider_id',
+                    )
+                    ->whereColumn('conflicts.id', '<>', 'tasks.id')
+                    ->whereIn('conflicts.status', ['pending', 'in_progress'])
+                    ->whereNull('conflicts.deleted_at')
+                    ->whereNotNull('conflicts.scheduled_end_at')
+                    ->whereColumn(
+                        'conflicts.scheduled_start_at',
+                        '<',
+                        'tasks.scheduled_end_at',
+                    )
+                    ->whereColumn(
+                        'conflicts.scheduled_end_at',
+                        '>',
+                        'tasks.scheduled_start_at',
+                    );
+        });
     }
 }
