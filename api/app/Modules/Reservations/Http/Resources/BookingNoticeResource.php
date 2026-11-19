@@ -42,4 +42,14 @@ final class BookingNoticeResource extends JsonResource
             ],
         ];
     }
+    
+    // Same rule as the task endpoints: a provider only opens tasks still assigned to them.
+    private function taskIsAvailable(): bool
+    {
+        $task = $this->task;
+
+        return $task !== null
+            && ! $task->trashed()
+            && (int) $task->serviceProvider?->user_id === (int) $this->user_id;
+    }
 }
