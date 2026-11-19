@@ -16,6 +16,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'booking_id',
     'task_id',
     'type',
+    'dedup_key',
+    'scheduled_start_at',
+    'scheduled_end_at',
     'check_in_on',
     'check_out_on',
     'read_at',
@@ -29,6 +32,8 @@ final class BookingNotice extends Model
             'check_in_on' => 'immutable_date',
             'check_out_on' => 'immutable_date',
             'read_at' => 'immutable_datetime',
+            'scheduled_start_at' => 'immutable_datetime',
+            'scheduled_end_at' => 'immutable_datetime',
         ];
     }
 
