@@ -7,6 +7,8 @@ use App\Modules\Properties\Http\Controllers\ProfileController;
 use App\Modules\Properties\Http\Controllers\PropertyController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderPhotoController;
+use App\Modules\Properties\Http\Controllers\ServiceProviderZoneController;
+use App\Modules\Properties\Http\Controllers\ZoneController;
 use App\Modules\Reservations\Http\Controllers\IcalImportController;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
 use App\Modules\Reservations\Http\Controllers\BookingSourceController;
@@ -90,6 +92,15 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
             ->whereNumber('property');
         Route::patch('/bookings/{booking}/schedule', [BookingController::class, 'updateSchedule'])
             ->whereNumber('booking');
+
+        // Zones (proximity criterion between properties and service providers)
+        Route::get('/zones', [ZoneController::class, 'index']);
+        Route::post('/zones', [ZoneController::class, 'store']);
+        Route::put('/zones/{zone}', [ZoneController::class, 'update'])->whereNumber('zone');
+        Route::patch('/zones/{zone}/activate', [ZoneController::class, 'activate'])->whereNumber('zone');
+        Route::patch('/zones/{zone}/deactivate', [ZoneController::class, 'deactivate'])->whereNumber('zone');
+        Route::put('/service-providers/{serviceProvider}/zones', [ServiceProviderZoneController::class, 'update'])
+            ->whereNumber('serviceProvider');
     });
 
     Route::middleware('role:service_provider')->group(function (): void {
@@ -126,5 +137,6 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
     Route::patch('/service-providers/{serviceProvider}/activate', [ServiceProviderController::class, 'activate'])->whereNumber('serviceProvider');
     Route::patch('/service-providers/{serviceProvider}/deactivate', [ServiceProviderController::class, 'deactivate'])->whereNumber('serviceProvider');
     Route::post('/service-providers/{serviceProvider}/photo', [ServiceProviderPhotoController::class, 'store'])->whereNumber('serviceProvider');
+    Route::get('/service-providers/{serviceProvider}/zones', [ServiceProviderZoneController::class, 'index'])->whereNumber('serviceProvider');
 });
 
