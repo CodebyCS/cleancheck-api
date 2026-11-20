@@ -9,6 +9,7 @@ use App\Modules\Properties\Http\Controllers\ServiceProviderAvailabilityControlle
 use App\Modules\Properties\Http\Controllers\ServiceProviderController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderPhotoController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderZoneController;
+use App\Modules\Properties\Http\Controllers\TaskCandidateController;
 use App\Modules\Properties\Http\Controllers\ZoneController;
 use App\Modules\Reservations\Http\Controllers\IcalImportController;
 use App\Modules\Reservations\Http\Controllers\IcalReadController;
@@ -102,6 +103,9 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::patch('/zones/{zone}/deactivate', [ZoneController::class, 'deactivate'])->whereNumber('zone');
         Route::put('/service-providers/{serviceProvider}/zones', [ServiceProviderZoneController::class, 'update'])
             ->whereNumber('serviceProvider');
+
+        // Service providers that can take a task (zone, weekly hours, unavailabilities, other tasks)
+        Route::get('/tasks/{task}/candidates', [TaskCandidateController::class, 'index'])->whereNumber('task');
     });
 
     Route::middleware('role:service_provider')->group(function (): void {
