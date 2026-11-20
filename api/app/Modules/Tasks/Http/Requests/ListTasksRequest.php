@@ -22,7 +22,6 @@ class ListTasksRequest extends FormRequest
             'type'        => ['sometimes', Rule::in(['checkout_cleaning', 'checkin_inspection'])],
             'deleted'     => ['sometimes', Rule::in(['only'])],
             'unassigned'  => ['sometimes', 'boolean'],
-            'in_conflict' => ['sometimes', 'boolean'],
             'overdue'     => ['sometimes', 'boolean'],
             'per_page'    => ['sometimes', 'integer', 'min:1', 'max:100'],
         ];
