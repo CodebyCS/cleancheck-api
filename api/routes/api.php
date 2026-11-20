@@ -5,6 +5,7 @@ use App\Http\Resources\UserResource;
 use App\Modules\Evidence\Http\Controllers\EvidenceTrialController;
 use App\Modules\Properties\Http\Controllers\ProfileController;
 use App\Modules\Properties\Http\Controllers\PropertyController;
+use App\Modules\Properties\Http\Controllers\ServiceProviderAvailabilityController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderPhotoController;
 use App\Modules\Properties\Http\Controllers\ServiceProviderZoneController;
@@ -138,5 +139,12 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
     Route::patch('/service-providers/{serviceProvider}/deactivate', [ServiceProviderController::class, 'deactivate'])->whereNumber('serviceProvider');
     Route::post('/service-providers/{serviceProvider}/photo', [ServiceProviderPhotoController::class, 'store'])->whereNumber('serviceProvider');
     Route::get('/service-providers/{serviceProvider}/zones', [ServiceProviderZoneController::class, 'index'])->whereNumber('serviceProvider');
+
+    // Weekly availability and unavailabilities (admin, supervisor or the provider themself)
+    Route::get('/service-providers/{serviceProvider}/availability', [ServiceProviderAvailabilityController::class, 'show'])->whereNumber('serviceProvider');
+    Route::put('/service-providers/{serviceProvider}/availability', [ServiceProviderAvailabilityController::class, 'update'])->whereNumber('serviceProvider');
+    Route::post('/service-providers/{serviceProvider}/unavailabilities', [ServiceProviderAvailabilityController::class, 'storeUnavailability'])->whereNumber('serviceProvider');
+    Route::delete('/service-providers/{serviceProvider}/unavailabilities/{unavailability}', [ServiceProviderAvailabilityController::class, 'destroyUnavailability'])
+        ->whereNumber(['serviceProvider', 'unavailability']);
 });
 
