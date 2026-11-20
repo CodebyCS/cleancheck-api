@@ -19,6 +19,10 @@ class TaskProviderResource extends JsonResource
             'scheduled_end_at' => $this->scheduled_end_at,
             'is_overdue' => $this->resource->isOverdue(),
             'status' => $this->status,
+            'has_video' => (bool) ($this->has_video ?? $this->videos()->exists()),
+            'missing_video' => $this->status === 'completed'
+                && $this->completedBy?->hasRole('service_provider') === true
+                && !(bool) ($this->has_video ?? $this->videos()->exists()),
             'started_at' => $this->started_at,
             'completed_at' => $this->completed_at,
             'provider_notes' => $this->provider_notes,

@@ -13,7 +13,9 @@ class ListTasks
 
     public function forStaff(array $filters): LengthAwarePaginator
     {
-        $query = Task::query()->with(['property', 'serviceProvider.user', 'completedBy']);
+        $query = Task::query()
+            ->with(['property', 'serviceProvider.user', 'completedBy.role'])
+            ->withExists(['videos as has_video']);
 
         if (($filters['deleted'] ?? null) === 'only') {
             $query->onlyTrashed();
@@ -26,7 +28,8 @@ class ListTasks
     public function forProvider(int $serviceProviderId, array $filters): LengthAwarePaginator
     {
         $query = Task::query()
-            ->with('property')
+            ->with(['property', 'completedBy.role'])
+            ->withExists(['videos as has_video'])
             ->where('service_provider_id', $serviceProviderId);
 
         return $this->filtered($query, $filters);
@@ -36,7 +39,8 @@ class ListTasks
     public function findForStaff(int $taskId): Task
     {
         return Task::withTrashed()
-            ->with(['property', 'serviceProvider.user', 'completedBy'])
+            ->with(['property', 'serviceProvider.user', 'completedBy.role'])
+            ->withExists(['videos as has_video'])
             ->findOrFail($taskId);
     }
 
@@ -44,7 +48,8 @@ class ListTasks
     public function findForProvider(int $taskId, int $serviceProviderId): Task
     {
         return Task::query()
-            ->with('property')
+            ->with(['property', 'completedBy.role'])
+            ->withExists(['videos as has_video'])
             ->where('service_provider_id', $serviceProviderId)
             ->findOrFail($taskId);
     }

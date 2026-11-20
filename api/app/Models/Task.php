@@ -75,6 +75,16 @@ class Task extends Model
         return $this->belongsTo(User::class, 'completed_by_user_id');
     }
 
+    public function evidences(): HasMany
+    {
+        return $this->hasMany(TaskEvidence::class);
+    }
+
+    public function videos(): HasMany
+    {
+        return $this->evidences()->where('kind', 'video');
+    }
+
     public function impediments(): HasMany
     {
         return $this->hasMany(TaskImpediment::class);

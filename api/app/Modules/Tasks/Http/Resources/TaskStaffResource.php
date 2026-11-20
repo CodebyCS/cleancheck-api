@@ -23,6 +23,10 @@ class TaskStaffResource extends JsonResource
             'service_provider' => $this->serviceProvider?->user?->name,
             'agreed_amount' => $this->agreed_amount,
             'status' => $this->status,
+            'has_video' => (bool) ($this->has_video ?? $this->videos()->exists()),
+            'missing_video' => $this->status === 'completed'
+                && $this->completedBy?->hasRole('service_provider') === true
+                && !(bool) ($this->has_video ?? $this->videos()->exists()),
             'notes' => $this->notes,
             'provider_notes' => $this->provider_notes,
             'completed_at' => $this->completed_at,
