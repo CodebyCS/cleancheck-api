@@ -19,6 +19,24 @@ function sendEvidenceTrial(mixed $test, ?UploadedFile $file, array $extra = [])
     return $test->post('/api/evidence-trials', $payload, ['Accept' => 'application/json']);
 }
 
+function fakeVideoFile(string $name, int $durationSeconds, string $mime = 'video/mp4', int $sizeKb = 200): UploadedFile
+{
+    $ftypPayload = 'isom'.pack('N', 0).'isommp42';
+    $ftyp = pack('N', strlen($ftypPayload) + 8).'ftyp'.$ftypPayload;
+    $movieHeader = pack('C4', 0, 0, 0, 0)
+        .pack('N', 0)
+        .pack('N', 0)
+        .pack('N', 1000)
+        .pack('N', $durationSeconds * 1000);
+    $movieHeaderAtom = pack('N', strlen($movieHeader) + 8).'mvhd'.$movieHeader;
+    $movieAtom = pack('N', strlen($movieHeaderAtom) + 8).'moov'.$movieHeaderAtom;
+
+    return UploadedFile::fake()
+        ->createWithContent($name, $ftyp.$movieAtom)
+        ->mimeType($mime)
+        ->size($sizeKb);
+}
+
 it('accepts a photo from a service provider and stores it privately', function () {
     $user = userWithRole('service_provider');
     $this->actingAs($user, 'sanctum');
@@ -38,7 +56,11 @@ it('accepts a photo from a service provider and stores it privately', function (
 it('accepts the supported formats', function (string $name, string $mime, string $kind) {
     $this->actingAs(userWithRole('service_provider'), 'sanctum');
 
-    sendEvidenceTrial($this, UploadedFile::fake()->create($name, 200, $mime))
+    $file = $kind === 'video'
+        ? fakeVideoFile($name, 1, $mime)
+        : UploadedFile::fake()->create($name, 200, $mime);
+
+    sendEvidenceTrial($this, $file)
         ->assertCreated()
         ->assertJsonPath('data.kind', $kind)
         ->assertJsonPath('data.device', null);
@@ -53,9 +75,51 @@ it('accepts the supported formats', function (string $name, string $mime, string
 it('accepts a video up to 50 MB', function () {
     $this->actingAs(userWithRole('service_provider'), 'sanctum');
 
-    sendEvidenceTrial($this, UploadedFile::fake()->create('limpeza.mp4', 50 * 1024, 'video/mp4'))
+    sendEvidenceTrial($this, fakeVideoFile('limpeza.mp4', 60, 'video/mp4', 50 * 1024))
         ->assertCreated()
         ->assertJsonPath('data.kind', 'video');
+});
+
+it('rejects a video longer than 60 seconds', function () {
+    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+
+    sendEvidenceTrial($this, fakeVideoFile('limpeza.mp4', 61))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['file' => 'O vídeo não pode ter mais de 60 segundos.']);
+
+    expect(Storage::disk('local')->allFiles())->toBeEmpty();
+});
+
+it('links an upload to an assigned task and records the authenticated provider', function () {
+    $provider = createServiceProvider('evidence-provider@example.test');
+    $task = \App\Models\Task::factory()->create(['service_provider_id' => $provider->id]);
+    $this->actingAs($provider->user, 'sanctum');
+
+    $this->post("/api/my/tasks/{$task->id}/evidence-trials", [
+        'file' => fakeVideoFile('limpeza.mp4', 45),
+    ], ['Accept' => 'application/json'])
+        ->assertCreated()
+        ->assertJsonPath('data.task_id', $task->id)
+        ->assertJsonStructure(['data' => ['id', 'task_id', 'kind', 'received_at']]);
+
+    $trial = \App\Models\EvidenceTrial::query()->sole();
+    expect($trial->task_id)->toBe($task->id)
+        ->and($trial->user_id)->toBe($provider->user_id)
+        ->and(Storage::disk('local')->exists($trial->path))->toBeTrue();
+});
+
+it('rejects a task-associated upload from a provider without current assignment', function () {
+    $assignedProvider = createServiceProvider('assigned-provider@example.test');
+    $otherProvider = createServiceProvider('other-provider@example.test');
+    $task = \App\Models\Task::factory()->create(['service_provider_id' => $assignedProvider->id]);
+    $this->actingAs($otherProvider->user, 'sanctum');
+
+    $this->post("/api/my/tasks/{$task->id}/evidence-trials", [
+        'file' => fakeVideoFile('limpeza.mp4', 45),
+    ], ['Accept' => 'application/json'])->assertForbidden();
+
+    expect(\App\Models\EvidenceTrial::query()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBeEmpty();
 });
 
 it('rejects a video over 50 MB', function () {

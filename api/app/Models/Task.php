@@ -79,4 +79,9 @@ class Task extends Model
     {
         return $this->hasMany(TaskImpediment::class);
     }
+
+    public function evidenceTrials(): HasMany
+    {
+        return $this->hasMany(EvidenceTrial::class);
+    }
 }
