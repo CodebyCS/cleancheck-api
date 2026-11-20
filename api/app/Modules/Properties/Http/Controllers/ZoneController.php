@@ -29,7 +29,8 @@ class ZoneController extends Controller
 
     public function store(StoreZoneRequest $request): JsonResponse
     {
-        $zone = Zone::create($request->validated());
+        // fresh() loads the database defaults, such as is_active.
+        $zone = Zone::create($request->validated())->fresh();
 
         return (new ZoneResource($zone->loadCount(['properties', 'serviceProviders'])))
             ->response()
