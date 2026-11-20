@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Task;
+use App\Models\TaskCancellationHistory;
 use App\Modules\Properties\Models\Property;
 use App\Modules\Reservations\Events\BookingCancelled;
 use App\Modules\Reservations\Events\BookingUpdated;
@@ -49,7 +50,8 @@ it('reschedules the task when a booking is updated', function () {
     $booking->update(['overridden_check_out_at' => '2026-11-22 11:00:00']);
     BookingUpdated::dispatch($booking->id);
 
-    expect($task->fresh()->scheduled_start_at->format('Y-m-d H:i'))->toBe('2026-11-22 11:30');
+    expect($task->fresh()->scheduled_start_at->format('Y-m-d H:i'))
+        ->toBe('2026-11-22 11:30');
 });
 
 it('cancels and soft deletes the pending task when a booking is cancelled', function () {
@@ -60,9 +62,12 @@ it('cancels and soft deletes the pending task when a booking is cancelled', func
     BookingCancelled::dispatch($booking->id);
 
     $task = Task::withTrashed()->findOrFail($task->id);
+    $history = TaskCancellationHistory::where('task_id', $task->id)->firstOrFail();
 
     expect($task->status)->toBe('cancelled')
-        ->and($task->deleted_at)->not->toBeNull();
+        ->and($task->deleted_at)->not->toBeNull()
+        ->and($history->source)->toBe('booking_cancelled')
+        ->and($history->user_id)->toBeNull();
 });
 
 it('does not cancel a task that is already in progress when the booking is cancelled', function () {
@@ -88,5 +93,6 @@ it('handles the same cancellation event twice without errors', function () {
     BookingCancelled::dispatch($booking->id);
 
     expect(Task::withTrashed()->where('booking_id', $booking->id)->count())->toBe(1)
-        ->and(Task::withTrashed()->findOrFail($task->id)->status)->toBe('cancelled');
+        ->and(Task::withTrashed()->findOrFail($task->id)->status)->toBe('cancelled')
+        ->and(TaskCancellationHistory::where('task_id', $task->id)->count())->toBe(1);
 });

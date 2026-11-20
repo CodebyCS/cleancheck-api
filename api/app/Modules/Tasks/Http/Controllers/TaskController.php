@@ -87,12 +87,13 @@ class TaskController extends Controller
     }
 
     /** Cancel a task: it becomes `cancelled` and is soft deleted. */
-    public function cancel(int $task, CancelTask $action): Response
+    public function cancel(Request $request, int $task, CancelTask $action): Response
     {
-        $action->manual($task);
+        $action->manual($task, $request->user()->id);
 
         return response()->noContent();
     }
+
 
     /**
      * Remove the specified resource from storage.

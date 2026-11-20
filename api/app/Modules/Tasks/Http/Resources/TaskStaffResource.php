@@ -17,6 +17,7 @@ class TaskStaffResource extends JsonResource
             'type' => $this->type,
             'scheduled_start_at' => $this->scheduled_start_at,
             'scheduled_end_at' => $this->scheduled_end_at,
+            'started_at' => $this->started_at,
             'is_overdue' => $this->resource->isOverdue(),
             'service_provider_id' => $this->service_provider_id,
             'service_provider' => $this->serviceProvider?->user?->name,
@@ -26,6 +27,7 @@ class TaskStaffResource extends JsonResource
             'provider_notes' => $this->provider_notes,
             'completed_at' => $this->completed_at,
             'completed_by' => $this->completedBy?->name,
+            'updated_at' => $this->updated_at,
             'deleted_at' => $this->deleted_at,
         ];
     }

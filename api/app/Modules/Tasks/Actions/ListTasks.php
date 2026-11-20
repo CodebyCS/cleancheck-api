@@ -57,6 +57,17 @@ class ListTasks
             ->when($filters['property_id'] ?? null, fn ($q, $id) => $q->where('property_id', $id))
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filters['type'] ?? null, fn ($q, $type) => $q->where('type', $type))
+            ->when(
+                filter_var($filters['unassigned'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                fn ($q) => $q->whereNull('service_provider_id'),
+            )
+            ->when(
+                filter_var($filters['overdue'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                fn ($q) => $q
+                    ->whereIn('status', ['pending', 'in_progress'])
+                    ->whereNotNull('scheduled_end_at')
+                    ->where('scheduled_end_at', '<', now()),
+            )
             ->orderBy('scheduled_start_at')
             ->orderBy('id');
 
