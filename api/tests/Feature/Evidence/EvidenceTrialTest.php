@@ -99,6 +99,7 @@ it('links an upload to an assigned task and records the authenticated provider',
         'file' => fakeVideoFile('limpeza.mp4', 45),
     ], ['Accept' => 'application/json'])
         ->assertCreated()
+        ->assertJsonPath('data.is_trial', true)
         ->assertJsonPath('data.task_id', $task->id)
         ->assertJsonStructure(['data' => ['id', 'task_id', 'kind', 'received_at']]);
 
@@ -113,6 +114,43 @@ it('rejects a task-associated upload from a provider without current assignment'
     $otherProvider = createServiceProvider('other-provider@example.test');
     $task = \App\Models\Task::factory()->create(['service_provider_id' => $assignedProvider->id]);
     $this->actingAs($otherProvider->user, 'sanctum');
+
+    $this->post("/api/my/tasks/{$task->id}/evidence-trials", [
+        'file' => fakeVideoFile('limpeza.mp4', 45),
+    ], ['Accept' => 'application/json'])->assertForbidden();
+
+    expect(\App\Models\EvidenceTrial::query()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBeEmpty();
+});
+
+it('rejects a task-associated upload for a nonexistent task without storing it', function () {
+    $provider = createServiceProvider('missing-task-provider@example.test');
+    $this->actingAs($provider->user, 'sanctum');
+
+    $this->post('/api/my/tasks/999999/evidence-trials', [
+        'file' => fakeVideoFile('limpeza.mp4', 45),
+    ], ['Accept' => 'application/json'])->assertNotFound();
+
+    expect(\App\Models\EvidenceTrial::query()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBeEmpty();
+});
+
+it('requires authentication on the task-associated upload route', function () {
+    $provider = createServiceProvider('unauthenticated-task-provider@example.test');
+    $task = \App\Models\Task::factory()->create(['service_provider_id' => $provider->id]);
+
+    $this->post("/api/my/tasks/{$task->id}/evidence-trials", [
+        'file' => fakeVideoFile('limpeza.mp4', 45),
+    ], ['Accept' => 'application/json'])->assertUnauthorized();
+
+    expect(\App\Models\EvidenceTrial::query()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBeEmpty();
+});
+
+it('rejects a non-provider on the task-associated upload route without storing it', function () {
+    $provider = createServiceProvider('task-role-provider@example.test');
+    $task = \App\Models\Task::factory()->create(['service_provider_id' => $provider->id]);
+    $this->actingAs(userWithRole('admin'), 'sanctum');
 
     $this->post("/api/my/tasks/{$task->id}/evidence-trials", [
         'file' => fakeVideoFile('limpeza.mp4', 45),

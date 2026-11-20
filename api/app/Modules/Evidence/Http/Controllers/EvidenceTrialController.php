@@ -87,6 +87,7 @@ class EvidenceTrialController extends Controller
         }
 
         $result = [
+            'is_trial' => true,
             'kind' => $kind,
             'mime_type' => $file->getMimeType(),
             'size_bytes' => $file->getSize(),

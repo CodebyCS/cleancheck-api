@@ -31,6 +31,7 @@ O tipo é detetado pelo conteúdo do ficheiro, não pela extensão. Para vídeos
 ```json
 {
   "data": {
+    "is_trial": true,
     "id": 74,
     "task_id": 123,
     "kind": "video",
@@ -42,6 +43,8 @@ O tipo é detetado pelo conteúdo do ficheiro, não pela extensão. Para vídeos
   }
 }
 ```
+
+`data.is_trial: true` identifica explicitamente esta resposta como confirmação de ensaio. Não representa uma prova de produção nem altera a tarefa.
 
 ### Erros
 
