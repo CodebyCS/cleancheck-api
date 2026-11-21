@@ -21,7 +21,7 @@ function sendEvidenceTrial(mixed $test, ?UploadedFile $file, array $extra = [])
 
 it('accepts a photo from a service provider and stores it privately', function () {
     $user = userWithRole('service_provider');
-    $this->actingAs($user, 'sanctum');
+    authenticateApiUser($user);
 
     sendEvidenceTrial($this, UploadedFile::fake()->create('quarto.jpg', 500, 'image/jpeg'), ['device' => 'Pixel 7, Android 15, 4G'])
         ->assertCreated()
@@ -36,7 +36,7 @@ it('accepts a photo from a service provider and stores it privately', function (
 });
 
 it('accepts the supported formats', function (string $name, string $mime, string $kind) {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     sendEvidenceTrial($this, UploadedFile::fake()->create($name, 200, $mime))
         ->assertCreated()
@@ -51,7 +51,7 @@ it('accepts the supported formats', function (string $name, string $mime, string
 ]);
 
 it('accepts a video up to 50 MB', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     sendEvidenceTrial($this, UploadedFile::fake()->create('limpeza.mp4', 50 * 1024, 'video/mp4'))
         ->assertCreated()
@@ -59,7 +59,7 @@ it('accepts a video up to 50 MB', function () {
 });
 
 it('rejects a video over 50 MB', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     sendEvidenceTrial($this, UploadedFile::fake()->create('limpeza.mp4', 50 * 1024 + 1, 'video/mp4'))
         ->assertUnprocessable()
@@ -67,7 +67,7 @@ it('rejects a video over 50 MB', function () {
 });
 
 it('rejects a photo over 10 MB', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     sendEvidenceTrial($this, UploadedFile::fake()->create('quarto.jpg', 10 * 1024 + 1, 'image/jpeg'))
         ->assertUnprocessable()
@@ -77,7 +77,7 @@ it('rejects a photo over 10 MB', function () {
 });
 
 it('rejects unsupported formats', function (string $name, string $mime) {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     sendEvidenceTrial($this, UploadedFile::fake()->create($name, 100, $mime))
         ->assertUnprocessable()
@@ -89,7 +89,7 @@ it('rejects unsupported formats', function (string $name, string $mime) {
 ]);
 
 it('requires a file', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     sendEvidenceTrial($this, null)
         ->assertUnprocessable()
@@ -97,7 +97,7 @@ it('requires a file', function () {
 });
 
 it('limits the device description to 120 characters', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     sendEvidenceTrial($this, UploadedFile::fake()->create('quarto.jpg', 100, 'image/jpeg'), ['device' => str_repeat('a', 121)])
         ->assertUnprocessable()
@@ -110,7 +110,7 @@ it('requires authentication', function () {
 });
 
 it('is only for service providers', function (string $role) {
-    $this->actingAs(userWithRole($role), 'sanctum');
+    authenticateApiUser(userWithRole($role));
 
     sendEvidenceTrial($this, UploadedFile::fake()->create('quarto.jpg', 100, 'image/jpeg'))
         ->assertForbidden();
