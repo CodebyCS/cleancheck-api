@@ -50,7 +50,11 @@ it('requires an active authenticated account', function () {
     $this->getJson('/api/profile')->assertUnauthorized();
 
     $ana = createServiceProvider('ana@example.test');
-    $ana->user->update(['is_active' => false]);
+    $user = $ana->user;
+    $user->is_active = false;
+    $user->save();
+
+    expect($user->fresh()->is_active)->toBeFalse();
 
     authenticateApiUser($ana->user->fresh());
     $this->getJson('/api/profile')

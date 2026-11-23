@@ -15,8 +15,9 @@ beforeEach(function () {
 it('uploads a photo and returns a signed link that serves it', function () {
     $provider = createServiceProvider('ana@example.test');
 
-    $response = authenticateApiUser(userWithRole('admin'));
-    $this->post("/api/service-providers/{$provider->id}/photo", [
+        authenticateApiUser(userWithRole('admin'));
+
+        $response = $this->post("/api/service-providers/{$provider->id}/photo", [
             'photo' => UploadedFile::fake()->create('ana.jpg', 100, 'image/jpeg'),
         ], ['Accept' => 'application/json'])
         ->assertOk();
@@ -33,7 +34,7 @@ it('uploads a photo and returns a signed link that serves it', function () {
 
 it('replaces the previous photo', function () {
     $provider = createServiceProvider('ana@example.test');
-    $this->actingAs(userWithRole('admin'), 'sanctum');
+    authenticateApiUser(userWithRole('admin'));
 
     $this->post("/api/service-providers/{$provider->id}/photo", [
         'photo' => UploadedFile::fake()->create('first.jpg', 100, 'image/jpeg'),
@@ -50,7 +51,7 @@ it('replaces the previous photo', function () {
 
 it('rejects files that are not allowed images', function () {
     $provider = createServiceProvider('ana@example.test');
-    $this->actingAs(userWithRole('admin'), 'sanctum');
+    authenticateApiUser(userWithRole('admin'));
 
     $this->post("/api/service-providers/{$provider->id}/photo", [
         'photo' => UploadedFile::fake()->create('cv.pdf', 100, 'application/pdf'),

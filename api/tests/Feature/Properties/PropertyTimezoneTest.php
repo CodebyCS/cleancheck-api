@@ -18,8 +18,9 @@ function timezonePropertyPayload(array $overrides = []): array
 }
 
 it('uses Europe/Lisbon when no timezone is sent', function () {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->postJson('/api/properties', timezonePropertyPayload())
+    authenticateApiUser(userWithRole('admin'));
+
+    $this->postJson('/api/properties', timezonePropertyPayload())
         ->assertCreated()
         ->assertJsonPath('data.timezone', 'Europe/Lisbon');
 
@@ -27,15 +28,17 @@ it('uses Europe/Lisbon when no timezone is sent', function () {
 });
 
 it('stores a valid timezone on create', function () {
-    $this->actingAs(userWithRole('supervisor'), 'sanctum')
-        ->postJson('/api/properties', timezonePropertyPayload(['timezone' => 'Atlantic/Azores']))
+    authenticateApiUser(userWithRole('supervisor'));
+
+    $this->postJson('/api/properties', timezonePropertyPayload(['timezone' => 'Atlantic/Azores']))
         ->assertCreated()
         ->assertJsonPath('data.timezone', 'Atlantic/Azores');
 });
 
 it('rejects an invalid timezone', function (mixed $timezone) {
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->postJson('/api/properties', timezonePropertyPayload(['timezone' => $timezone]))
+    authenticateApiUser(userWithRole('admin'));
+
+    $this->postJson('/api/properties', timezonePropertyPayload(['timezone' => $timezone]))
         ->assertUnprocessable()
         ->assertJsonValidationErrors('timezone');
 
@@ -50,8 +53,9 @@ it('rejects an invalid timezone', function (mixed $timezone) {
 it('updates the timezone of a property', function () {
     $property = Property::create(timezonePropertyPayload());
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson("/api/properties/{$property->id}", timezonePropertyPayload(['timezone' => 'Europe/Madrid']))
+    authenticateApiUser(userWithRole('admin'));
+
+    $this->putJson("/api/properties/{$property->id}", timezonePropertyPayload(['timezone' => 'Europe/Madrid']))
         ->assertOk()
         ->assertJsonPath('data.timezone', 'Europe/Madrid');
 
@@ -61,8 +65,9 @@ it('updates the timezone of a property', function () {
 it('keeps the current timezone when the update does not send one', function () {
     $property = Property::create(timezonePropertyPayload(['timezone' => 'Atlantic/Madeira']));
 
-    $this->actingAs(userWithRole('admin'), 'sanctum')
-        ->putJson("/api/properties/{$property->id}", timezonePropertyPayload(['name' => 'Casa do Fuso T1']))
+    authenticateApiUser(userWithRole('admin'));
+
+    $this->putJson("/api/properties/{$property->id}", timezonePropertyPayload(['name' => 'Casa do Fuso T1']))
         ->assertOk()
         ->assertJsonPath('data.timezone', 'Atlantic/Madeira');
 });
