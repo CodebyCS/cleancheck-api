@@ -1,6 +1,12 @@
 <?php
 
+use App\Models\Role;
+use App\Models\User;
+use App\Modules\Properties\Models\Property;
+use App\Modules\Properties\Models\ServiceProvider;
+use App\Modules\Reservations\Ical\HostResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 /*
@@ -44,7 +50,116 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+function icalFixture(string $name): string
 {
-    // ..
+    return file_get_contents(__DIR__ . '/Fixtures/ical/' . $name);
+}
+
+function icalUpload(string $fixture, ?string $clientName = null): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent($clientName ?? $fixture, icalFixture($fixture));
+}
+
+function userWithRole(string $role): User
+{
+    return User::factory()->create([
+        'role_id' => Role::where('name', $role)->firstOrFail()->id,
+        'is_active' => true,
+    ]);
+}
+
+function icalProperty(): Property
+{
+    return Property::create([
+        'name' => 'Casa Teste iCal',
+        'address' => 'Rua de Teste, 1',
+        'postal_code' => '1000-001',
+        'city' => 'Lisboa',
+    ]);
+}
+
+/** @param array<string, list<string>> $records host => IPs */
+function fakeDns(array $records): void
+{
+    app()->instance(HostResolver::class, new class($records) extends HostResolver
+    {
+        public function __construct(private readonly array $records) {}
+
+        public function resolve(string $host): array
+        {
+            return $this->records[$host] ?? parent::resolve($host);
+        }
+    });
+}
+
+function createServiceProvider(string $email, array $attributes = []): ServiceProvider
+{
+    $user = userWithRole('service_provider');
+    $user->update(['email' => $email]);
+
+    return ServiceProvider::create(array_merge([
+        'user_id' => $user->id,
+        'phone' => '912345678',
+    ], $attributes));
+}
+
+function authenticateApiUser(
+    \App\Models\User $user,
+): \App\Models\User {
+    $token = $user->createToken(
+        'automated-test',
+        ['*'],
+        now()->addHours(2),
+    );
+
+    \Illuminate\Support\Facades\Auth::forgetGuards();
+
+    test()->withHeaders([
+        'Accept' => 'application/json',
+        'Authorization' => 'Bearer '.$token->plainTextToken,
+    ]);
+
+    return $user;
+}
+
+function feedSequence(string ...$fixtures): void
+{
+    $sequence = \Illuminate\Support\Facades\Http::sequence();
+
+    foreach ($fixtures as $fixture) {
+        $sequence->push(icalFixture($fixture));
+    }
+
+    \Illuminate\Support\Facades\Http::fake(['calendar.example.com/*' => $sequence]);
+}
+
+function noticeBooking(int $propertyId): \App\Modules\Reservations\Models\Booking
+{
+    $source = \App\Modules\Reservations\Models\BookingSource::create([
+        'property_id' => $propertyId,
+        'channel' => 'airbnb',
+        'type' => 'url',
+        'url' => 'https://calendar.example.com/feed.ics?s=fict',
+        'is_active' => true,
+    ]);
+
+    return \App\Modules\Reservations\Models\Booking::create([
+        'booking_source_id' => $source->id,
+        'external_uid' => 'fict-notice-0001@cleancheck.test',
+        'source_check_in_at' => '2026-11-02',
+        'source_check_out_at' => '2026-11-05',
+        'status' => \App\Modules\Reservations\Enums\ReservationStatus::Reserved,
+    ]);
+}
+
+function noticeTask(\App\Modules\Reservations\Models\Booking $booking, ?int $serviceProviderId): \App\Models\Task
+{
+    return \App\Models\Task::create([
+        'booking_id' => $booking->id,
+        'property_id' => $booking->bookingSource->property_id,
+        'service_provider_id' => $serviceProviderId,
+        'type' => 'checkout_cleaning',
+        'status' => 'pending',
+        'scheduled_start_at' => '2026-11-05 11:30:00',
+    ]);
 }

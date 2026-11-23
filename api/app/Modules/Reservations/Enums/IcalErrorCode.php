@@ -1,0 +1,18 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Modules\Reservations\Enums;
+
+enum IcalErrorCode: string
+{
+    case NoFile = 'NO_FILE';
+    case InvalidFileType = 'INVALID_FILE_TYPE';
+    case EmptyFile = 'EMPTY_FILE';
+    case InvalidIcal = 'INVALID_ICAL';
+    case PropertyNotFound = 'PROPERTY_NOT_FOUND';
+    case UrlNotAllowed = 'URL_NOT_ALLOWED';
+    case FetchFailed = 'FETCH_FAILED';
+    case FeedTooLarge = 'FEED_TOO_LARGE';
+    case SourceNotSyncable = 'SOURCE_NOT_SYNCABLE';
+    case SyncInProgress = 'SYNC_IN_PROGRESS';
+}

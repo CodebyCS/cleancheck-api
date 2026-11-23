@@ -1,0 +1,512 @@
+# Contrato — Reservas iCal
+
+## Pedido
+
+Igual nas duas operações. Conta ativa com perfil `admin` ou `supervisor` · `multipart/form-data`
+
+| Campo | Tipo | Obrigatório |
+|---|---|---|
+| `file` | Ficheiro `.ics` | Sim |
+| `property_id` | Inteiro positivo (imóvel já registado) | Sim |
+
+O `.ics` não identifica o imóvel: a associação vem sempre do `property_id`.
+
+## Mapeamento
+
+| iCal | Campo | Regra |
+|---|---|---|
+| `UID` | `externalUid` | Obrigatório |
+| `DTSTART` | `checkIn` | `YYYY-MM-DD` |
+| `DTEND` | `checkOut` | `YYYY-MM-DD`, dia de saída (exclusivo) |
+| `SUMMARY` | `status` | Ver classificação |
+| `SEQUENCE` | `sequence` | Opcional, `null` se ausente |
+| `DESCRIPTION` | `reservationUrl` | Só o URL após `Reservation URL:` |
+
+- Só datas de dia inteiro (`VALUE=DATE`).
+- `nights` = `checkOut − checkIn`.
+- Outras propriedades (`DTSTAMP`, `X-*`) são ignoradas.
+- A `DESCRIPTION` original e o telefone não são devolvidos.
+- Eventos recorrentes (`RRULE`) não são expandidos: só é lida a primeira ocorrência.
+
+## Classificação
+
+| `SUMMARY` | `status` |
+|---|---|
+| `Reserved` | `reserved` |
+| `Airbnb (Not available)` | `blocked` |
+| Outro ou ausente | `unknown` + aviso `UNKNOWN_SUMMARY` |
+
+## Erros `422` — ficheiro rejeitado
+
+```json
+{ "error": { "code": "INVALID_ICAL", "message": "O ficheiro não é um VCALENDAR válido." } }
+```
+
+| Código | Quando |
+|---|---|
+| `NO_FILE` | Pedido sem ficheiro |
+| `INVALID_FILE_TYPE` | Extensão diferente de `.ics` |
+| `PROPERTY_NOT_FOUND` | `property_id` em falta ou inválido |
+| `EMPTY_FILE` | Ficheiro vazio |
+| `INVALID_ICAL` | Não é um `VCALENDAR` válido |
+
+Sem autenticação ou conta inativa → `401`. Perfil sem permissão (`service_provider`) → `403`.
+
+## Avisos — evento ignorado ou degradado
+
+| Código | Quando | Efeito |
+|---|---|---|
+| `MISSING_UID` | Sem `UID` | Ignorado (`uid: null`) |
+| `DUPLICATE_UID` | `UID` repetido | Mantém o primeiro |
+| `MISSING_DATES` | Falta `DTSTART` ou `DTEND` | Ignorado |
+| `UNSUPPORTED_DATETIME` | Data com hora | Ignorado |
+| `INVALID_DATE_RANGE` | `DTEND` ≤ `DTSTART` | Ignorado |
+| `UNKNOWN_SUMMARY` | `SUMMARY` não reconhecido | Mantido como `unknown` |
+
+---
+
+## Leitura
+
+`POST /api/reservations/ical/read`
+
+Lê o ficheiro e devolve os eventos, sem gravar nada.
+
+### Resposta `200`
+
+```json
+{
+  "propertyId": 1,
+  "channel": "airbnb",
+  "events": [
+    {
+      "externalUid": "fict-0001@cleancheck.test",
+      "checkIn": "2026-10-10",
+      "checkOut": "2026-10-14",
+      "nights": 4,
+      "status": "reserved",
+      "sequence": null,
+      "reservationUrl": "https://www.airbnb.com/hosting/reservations/details/HMFICT0001",
+      "rawSummary": "Reserved"
+    }
+  ],
+  "warnings": [
+    {
+      "uid": "fict-inv-0006@cleancheck.test",
+      "code": "UNKNOWN_SUMMARY",
+      "message": "SUMMARY não reconhecido: 'Manutencao'. Evento classificado como unknown."
+    }
+  ]
+}
+```
+
+Ficheiro válido sem eventos → `events: []`.
+
+---
+
+## Importação
+
+`POST /api/reservations/ical/import`
+
+Grava as reservas do ficheiro. Importar o mesmo ficheiro outra vez não cria duplicados.
+
+### Resposta `200`
+
+```json
+{
+  "propertyId": 1,
+  "channel": "airbnb",
+  "created": [
+    {
+      "bookingId": 1,
+      "externalUid": "fict-0001@cleancheck.test",
+      "checkIn": "2026-10-10",
+      "checkOut": "2026-10-14",
+      "nights": 4,
+      "status": "reserved"
+    }
+  ],
+  "existing": [],
+  "updated": [],
+  "cancelled": [],
+  "ambiguous": [
+    {
+      "externalUid": "fict-inv-0006@cleancheck.test",
+      "checkIn": "2026-12-20",
+      "checkOut": "2026-12-22",
+      "status": "unknown",
+      "rawSummary": "Manutencao"
+    }
+  ],
+  "skipped": [],
+  "warnings": []
+}
+```
+
+### Destino de cada evento
+
+| Evento | Gravado? | Lista |
+|---|---|---|
+| `reserved`, novo | Sim | `created` |
+| `reserved`, já importado (mesma fonte + `externalUid`), com as mesmas datas | Não é alterado | `existing` |
+| `reserved`, já importado, com datas diferentes (só fontes URL) | Datas recebidas atualizadas; o ajuste local mantém-se | `updated` |
+| `unknown` | Não | `ambiguous` |
+| `blocked` | Não | `skipped` |
+| Inválido (ver avisos) | Não | `warnings` |
+
+- A fonte (tipo `file`) é identificada pelo imóvel + canal e é reutilizada entre importações.
+- Cada importação fica registada em `sync_runs` (ver "Registo de tentativas").
+- As reservas são gravadas numa só transação: se a gravação falhar, nada desta importação fica gravado e os dados anteriores mantêm-se.
+- A importação por ficheiro **nunca cancela nem atualiza** reservas: uma reserva já importada vai sempre para `existing`, e `cancelled` e `updated` vêm sempre vazios. Ver "Cancelamentos" e "Alterações" nas Fontes URL.
+
+---
+
+## Evento `BookingImported`
+
+`App\Modules\Reservations\Events\BookingImported`
+
+| Propriedade | Tipo |
+|---|---|
+| `bookingId` | `int` |
+
+- Disparado uma vez por reserva `created` e `existing`, depois de a importação terminar com sucesso.
+- Não é disparado se a importação falhar.
+- As reservas `existing` são anunciadas em cada importação: reimportar o ficheiro permite recuperar uma tarefa que não foi criada.
+- As reservas `updated` recebem `BookingUpdated` em vez deste evento.
+- A criação de tarefas é feita por quem ouve o evento (módulo Tasks) e não altera a resposta da importação.
+
+---
+
+## Evento `BookingUpdated`
+
+`App\Modules\Reservations\Events\BookingUpdated`
+
+| Propriedade | Tipo |
+|---|---|
+| `bookingId` | `int` |
+
+Disparado depois de gravar, uma vez por reserva, quando as datas efetivas podem ter mudado:
+
+- numa sincronização URL, quando as datas recebidas do Airbnb mudam (reserva em `updated`);
+- quando o ajuste local é alterado (`PATCH /api/bookings/{booking}/schedule`). Enviar o mesmo ajuste outra vez não dispara.
+
+Quem ouve deve reler a reserva: as datas efetivas são `overridden_*` quando existem e, caso contrário, `source_*`.
+Também gera avisos internos (ver [Avisos internos](#avisos-internos)).
+
+---
+
+## Evento `BookingCancelled`
+
+`App\Modules\Reservations\Events\BookingCancelled`
+
+| Propriedade | Tipo |
+|---|---|
+| `bookingId` | `int` |
+
+- Disparado uma vez por reserva em `cancelled`, depois de a sincronização terminar com sucesso.
+- Nunca é disparado duas vezes para a mesma reserva: só reservas `reserved` podem ser canceladas.
+- Remover ou manter as tarefas da reserva é decisão de quem ouve o evento (módulo Tasks).
+Também gera avisos internos (ver [Avisos internos](#avisos-internos)).
+
+---
+
+## Reservas
+
+Conta ativa com perfil `admin` ou `supervisor` (grupo `role:admin,supervisor`) · JSON. Perfil sem permissão → `403`. Sem autenticação → `401`.
+
+### Listar
+
+`GET /api/properties/{property}/bookings`
+
+```json
+{
+  "data": [
+    {
+      "id": 4,
+      "propertyId": 1,
+      "bookingSourceId": 2,
+      "externalUid": "fict-0004@cleancheck.test",
+      "status": "reserved",
+      "source": { "checkIn": "2026-11-02", "checkOut": "2026-11-05" },
+      "overridden": { "checkIn": null, "checkOut": "2026-11-07" },
+      "effective": { "checkIn": "2026-11-02", "checkOut": "2026-11-07" }
+    }
+  ]
+}
+```
+
+- Inclui reservas de todas as fontes do imóvel, em qualquer estado, ordenadas pelo check-in recebido.
+- `source`: datas recebidas. `overridden`: ajuste local ou `null`. `effective`: o ajuste quando existe, senão o recebido (são as datas que as tarefas usam).
+
+### Ajustar datas
+
+`PATCH /api/bookings/{booking}/schedule`
+
+```json
+{ "check_in": null, "check_out": "2026-11-07" }
+```
+
+| Campo | Regra |
+|---|---|
+| `check_in` | Obrigatório no pedido · `YYYY-MM-DD` ou `null` |
+| `check_out` | Obrigatório no pedido · `YYYY-MM-DD` ou `null` |
+
+- `null` usa a data recebida. Os dois a `null` limpam o ajuste.
+- O check-out efetivo tem de ser depois do check-in efetivo.
+- Só reservas `reserved` podem ser ajustadas.
+- O ajuste muda só o dia. A hora das tarefas vem da propriedade (ver `Docs/contracts/property-schedule.md`).
+- O ajuste nunca é alterado pela sincronização e não é enviado para o Airbnb.
+- Resposta `200` com a reserva em `data`, no formato da listagem.
+- Erros → `422` no formato de validação do Laravel, no campo `check_in`, `check_out` ou `booking` (reserva não ativa). Reserva inexistente → `404`.
+
+---
+
+## Avisos internos
+
+Cada alteração de uma reserva ou de uma tarefa gera um aviso para quem é afetado.
+
+### Quem recebe
+
+| Origem | `type` | Destinatário | `task` |
+|---|---|---|---|
+| Reserva com datas alteradas | `booking_updated` | Prestador de cada tarefa da reserva | id da tarefa |
+| | | Supervisores e admins | `null` |
+| Reserva cancelada | `booking_cancelled` | Prestador de cada tarefa da reserva | id da tarefa |
+| | | Supervisores e admins | `null` |
+| Tarefa atribuída ou reatribuída | `task_assigned` | Novo prestador | id da tarefa |
+| | `task_unassigned` | Prestador anterior | id da tarefa |
+| Tarefa cancelada pela equipa ou por imóvel desativado | `task_cancelled` | Prestador da tarefa | id da tarefa |
+
+- Uma tarefa cancelada por causa da reserva gera só `booking_cancelled` (sem `task_cancelled`). O reagendamento vindo da reserva é avisado por `booking_updated`.
+- Os avisos são gravados por listeners em fila (`BookingUpdated`, `BookingCancelled`, `TaskAssigned`, `TaskCancelled`). Em desenvolvimento, é preciso `php artisan queue:work` a correr.
+
+### Sem duplicação
+
+- Um aviso por pessoa, reserva, tipo e datas efetivas (tabela `booking_notices`, chave única).
+- A mesma alteração repetida não cria outro aviso.
+- Se as datas voltam a umas que já tinham aviso, esse aviso volta a não lido e sobe para o topo (`notifiedAt` atualizado).
+- Avisos de tarefa: um por pessoa e evento de origem (`dedup_key`, por exemplo `task_assignment:{id do histórico}` ou `task_cancelled:{id da tarefa}`). Repetir o mesmo pedido ou o mesmo job não cria outro aviso nem o volta a pôr como não lido.
+
+### Endpoints
+
+Conta ativa, **qualquer perfil** · JSON · cada pessoa vê só os seus avisos. Sem autenticação → `401`. Aviso de outra pessoa ou inexistente → `404`.
+
+#### Listar
+
+`GET /api/booking-notices`
+
+| Parâmetro | Regra |
+|---|---|
+| `unread` | Opcional · `1` devolve só os não lidos |
+| `page` | Opcional · 20 por página |
+
+```json
+{
+  "data": [
+    {
+      "id": 12,
+      "type": "booking_updated",
+      "read": false,
+      "readAt": null,
+      "notifiedAt": "2026-11-10T14:05:00+00:00",
+      "booking": {
+        "id": 4,
+        "status": "reserved",
+        "checkIn": "2026-11-03",
+        "checkOut": "2026-11-06"
+      },
+      "property": { "id": 1, "name": "Casa Teste iCal" },
+      "task": { "id": 7, "available": true, "scheduledStart": null, "scheduledEnd": null }
+    }
+  ],
+  "links": { "first": "...", "last": "...", "prev": null, "next": null },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 20, "total": 1, "unreadCount": 1 }
+}
+```
+
+- Ordenados do mais recente para o mais antigo (`notifiedAt`).
+- `type`: `booking_updated`, `booking_cancelled`, `task_assigned`, `task_unassigned` ou `task_cancelled`.
+- `booking.checkIn` / `checkOut`: nos avisos de reserva, as datas efetivas **no momento do aviso**; nos avisos de tarefa, as datas atuais da reserva.
+- `task.scheduledStart` / `scheduledEnd`: horário da tarefa no momento do aviso (só avisos de tarefa; nos de reserva vem `null`).
+- `meta.unreadCount`: total de não lidos da pessoa, com ou sem o filtro `unread`.
+
+#### Detalhe
+
+`GET /api/booking-notices/{id}` → `200` com o aviso em `data`, no formato da listagem.
+
+#### Marcar como lido
+
+`PATCH /api/booking-notices/{id}/read` → `200` com o aviso em `data`.
+
+- Sem corpo.
+- Repetir não muda nada: `readAt` mantém a primeira leitura.
+- Ler não muda a ordem da lista.
+
+### Acesso removido
+
+- `task.available: false` quando a tarefa já não está atribuída a quem recebeu o aviso (reatribuída ou removida).
+- O aviso continua visível. A tarefa deixa de abrir: `GET /api/my/tasks/{id}` (prestador) responde `404`.
+- O cliente mostra o aviso sem ligação à tarefa.
+
+---
+
+
+## Fontes URL
+
+Conta ativa com perfil `admin` ou `supervisor` · JSON. Perfil sem permissão (`service_provider`) → `403`. Sem autenticação → `401`.
+
+### Listar
+
+`GET /api/properties/{property}/booking-sources`
+
+```json
+{
+  "data": [
+    {
+      "id": 3,
+      "propertyId": 1,
+      "channel": "airbnb",
+      "type": "url",
+      "url": "https://www.airbnb.com/calendar/ical/123456.ics?s=fict",
+      "isActive": true,
+      "lastSync": {
+        "status": "failed",
+        "startedAt": "2026-11-10T10:30:00+00:00",
+        "finishedAt": "2026-11-10T10:30:02+00:00",
+        "createdCount": 0,
+        "updatedCount": 0,
+        "cancelledCount": 0,
+        "errorMessage": "Não foi possível encontrar o servidor example.invalid."
+      },
+      "lastSuccessAt": "2026-11-10T10:00:01+00:00",
+      "stale": false,
+      "staleAfterMinutes": 120
+    }
+  ]
+}
+```
+- `lastSync`: última tentativa (`running`, `success` ou `failed`), ou `null` se nunca sincronizou. `errorMessage` só em `failed`.
+- `lastSuccessAt`: fim da última sincronização com sucesso, ou `null`.
+- `stale` (desatualizada): `true` quando uma fonte URL ativa não tem sucesso há mais de `staleAfterMinutes` minutos, ou nunca teve. Fontes de ficheiro ou inativas são sempre `false`. O limite está em `config/reservations.php` (`ICAL_STALE_AFTER_MINUTES`, por omissão 120 = quatro ciclos de 30 minutos).
+- `running` com mais de 5 minutos indica uma tentativa interrompida. A sincronização seguinte fecha-a como `failed`, com a mensagem "Sincronização interrompida antes de terminar.".
+- Inclui as fontes criadas por importação de ficheiro (`type: "file"`, `url: null`).
+- Imóvel inexistente → `404`.
+
+### Registar
+
+`POST /api/properties/{property}/booking-sources`
+
+| Campo | Regra |
+|---|---|
+| `url` | Obrigatório · `https://` · até 2048 caracteres · único no imóvel |
+
+- Resposta `201` com a fonte em `data`.
+- `channel` (`airbnb`) e `type` (`url`) são definidos pelo servidor.
+- URL inválido ou repetido → `422` no formato de validação do Laravel (`{ "message", "errors": { "url": [...] } }`).
+- O URL de exportação do Airbnb contém um token privado: não deve ser partilhado nem guardado em ficheiros do repositório.
+
+### Sincronizar
+
+`POST /api/booking-sources/{bookingSource}/sync`
+
+Descarrega o calendário agora e importa as reservas.
+
+- Resposta `200` no mesmo formato da Importação (`created`, `existing`, `updated`, `cancelled`, `ambiguous`, `skipped`, `warnings`).
+- Aplicam-se as mesmas regras: "Destino de cada evento", "Alterações", "Cancelamentos" e os eventos `BookingImported` / `BookingUpdated` / `BookingCancelled`.
+- Sincronizar o mesmo calendário outra vez não cria duplicados: as reservas aparecem em `existing`.
+
+| Estado | Código | Quando |
+|---|---|---|
+| `422` | `URL_NOT_ALLOWED` | Não é `https` na porta 443, tem credenciais no URL, aponta para uma rede privada ou local (também depois de um redirecionamento) ou tem mais de 3 redirecionamentos |
+| `422` | `FETCH_FAILED` | Servidor não encontrado, ligação recusada, tempo esgotado ou estado HTTP diferente de 2xx |
+| `422` | `FEED_TOO_LARGE` | Calendário com mais de 2 MB |
+| `422` | `EMPTY_FILE` / `INVALID_ICAL` | O conteúdo descarregado não é um calendário válido |
+| `422` | `SOURCE_NOT_SYNCABLE` | Fonte do tipo `file` ou inativa |
+| `409` | `SYNC_IN_PROGRESS` | A fonte já está a ser sincronizada |
+| `404` | — | Fonte inexistente |
+
+As mensagens de erro indicam o servidor, nunca o URL completo.
+
+### Editar
+
+`PATCH /api/booking-sources/{bookingSource}`
+
+```json
+{ "url": "https://www.airbnb.com/calendar/ical/123456.ics?s=novo", "is_active": true }
+```
+
+| Campo | Regra |
+|---|---|
+| `url` | Opcional · `https://` · máx. 2048 · único no imóvel |
+| `is_active` | Opcional · `true` / `false` |
+
+- Pelo menos um dos dois campos. Pedido vazio → `422`.
+- Só fontes `type: "url"`. Fonte de ficheiro → `422` no campo `source`.
+- Mudar o URL serve para o **mesmo** calendário (por exemplo, um link novo gerado no Airbnb). Para outro calendário, desativar esta fonte e registar uma nova: as reservas futuras que não aparecem no feed novo seriam canceladas.
+- Uma fonte inativa não é sincronizada (manual → `422 SOURCE_NOT_SYNCABLE`; automática → ignorada).
+- Resposta `200` com a fonte em `data`, no formato da listagem. Erros de validação → `422`. Perfil sem permissão → `403`.
+
+### Limites do download
+
+| Regra | Valor |
+|---|---|
+| Protocolo | Só `https`, porta 443 |
+| Destino | Só IPs públicos, verificados em cada redirecionamento; a ligação é feita ao IP verificado |
+| Redirecionamentos | Máximo 3 |
+| Tempo | 5 s para ligar, 15 s no total |
+| Tamanho | Máximo 2 MB |
+
+### Alterações
+
+- Numa sincronização URL, uma reserva `reserved` cujo check-in ou check-out recebido mudou fica com as datas novas em `source_*` e aparece em `updated`.
+- O ajuste local (`overridden_*`) nunca é alterado pela sincronização.
+- Reservas `cancelled` não são atualizadas.
+
+### Cancelamentos
+
+Uma reserva da fonte passa a `cancelled` (e aparece em `cancelled`) quando **todas** estas condições se verificam:
+
+| Condição | Motivo |
+|---|---|
+| A sincronização é de uma fonte URL | Um ficheiro carregado à mão pode ser uma exportação antiga |
+| O download e a leitura correram bem | Uma falha nunca cancela reservas |
+| O calendário tem pelo menos um evento | Um calendário vazio pode ser uma falha da origem |
+| Nenhum evento está sem `UID` | Um evento sem `UID` torna a leitura incompleta |
+| O `externalUid` não aparece no calendário, nem num evento nem num aviso | Uma reserva com dados inválidos continua a estar no calendário |
+| A reserva está `reserved` | Não se cancela duas vezes |
+| O check-out recebido é depois de hoje | O Airbnb retira do calendário as estadias passadas |
+
+- Os cancelamentos são gravados na mesma transação que as reservas.
+- Uma reserva cancelada que volte a aparecer no calendário continua `cancelled` e é listada em `existing`.
+
+### Registo de tentativas (`sync_runs`)
+
+- Cada sincronização (manual ou automática) cria uma linha **antes** do download: `running` → `success` ou `failed`.
+- `success` grava `created_count`, `updated_count` e `cancelled_count`. `failed` grava `error_message`.
+- Uma sincronização falhada não altera as reservas já gravadas e não dispara eventos.
+- A mesma fonte nunca é sincronizada duas vezes ao mesmo tempo. Uma tentativa recusada por isso (`409`) não cria linha.
+
+### Sincronização automática
+
+- O comando `php artisan reservations:sync` põe na fila um job por cada fonte URL ativa.
+- Está agendado a cada 30 minutos, sem sobreposição.
+- `php artisan reservations:sync --now` sincroniza no próprio terminal, sem fila.
+- Falhas ficam em `sync_runs` e no log (`iCal sync failed`, com o id da fonte e o código, sem o URL). O ciclo seguinte tenta outra vez.
+
+Para correr:
+
+| Ambiente | Agendador | Fila |
+|---|---|---|
+| Desenvolvimento | `php artisan schedule:work` | `php artisan queue:work` |
+| Servidor | cron `* * * * * php artisan schedule:run` | `php artisan queue:work` (supervisionado) |
+
+### Reproduzir localmente
+
+1. MySQL ligado, `php artisan migrate`, API com `php artisan serve`, web com `npm run dev`. Entrar como supervisor (contas no `DemoUserSeeder`).
+2. No Airbnb: Calendário → Disponibilidade → Sincronizar calendários → Exportar calendário. Copiar o link `.ics`.
+3. `GET /api/properties` para obter o id do imóvel.
+4. `POST /api/properties/{id}/booking-sources` com `{ "url": "<link>" }` → `201`.
+5. `POST /api/booking-sources/{id}/sync` → `200` com reservas em `created`. Repetir → as mesmas em `existing`.
+6. `GET /api/properties/{id}/bookings` → reservas com datas recebidas e efetivas. `PATCH /api/bookings/{id}/schedule` com `{ "check_in": null, "check_out": "<data>" }` → o ajuste aparece em `overridden` e `effective`.
+7. Com `php artisan queue:work` a correr, `GET /api/booking-notices` como supervisor → aviso `booking_updated` com as novas datas. `PATCH /api/booking-notices/{id}/read` → `read: true`.
+8. `php artisan reservations:sync --now` → sincroniza todas as fontes ativas. Ver as linhas em `sync_runs`.
+9. Sem link real: `php artisan test --filter=Reservations` cobre o fluxo com respostas simuladas.
