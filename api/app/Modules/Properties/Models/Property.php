@@ -30,6 +30,7 @@ class Property extends Model
      */
     protected $attributes = [
         'timezone' => self::DEFAULT_TIMEZONE,
+        'is_active' => true,
     ];
 
     /**

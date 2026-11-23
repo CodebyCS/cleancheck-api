@@ -12,7 +12,7 @@ Projeto em fase inicial de configuração e desenvolvimento.
 
 - PHP
 - Laravel
-- MySQLMySQL / MariaDB (via XAMPP)
+- MySQL / MariaDB (via XAMPP)
 - Composer
 
 As dependências e os requisitos de versão encontram-se no ficheiro `composer.json`. O ficheiro `composer.lock` regista as versões utilizadas pelo projeto.
@@ -34,7 +34,7 @@ O serviço MySQL deve estar em execução.
 
 ```bash
 git clone https://github.com/CodebyCS/cleancheck-api.git
-cd cleancheck-api
+cd cleancheck-api/api
 ```
 
 ### 2. Instalar as dependências
@@ -57,7 +57,13 @@ No Linux ou macOS:
 cp .env.example .env
 ```
 
-### 4. Configurar a base de dados
+### 4. Gerar a chave da aplicação
+
+```bash
+php artisan key:generate
+```
+
+### 5. Configurar a base de dados
 
 Cria uma base de dados no MySQL:
 
@@ -83,16 +89,11 @@ DB_USERNAME=teu_utilizador
 DB_PASSWORD=tua_password
 ```
 
-### 5. Gerar a chave da aplicação
-
-```bash
-php artisan key:generate
-```
-
 ### 6. Executar as migrações
 
 ```bash
 php artisan migrate
+php artisan db:seed
 ```
 
 ### 7. Iniciar o servidor local

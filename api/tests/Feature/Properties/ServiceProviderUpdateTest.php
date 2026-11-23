@@ -83,7 +83,7 @@ it('deactivates a provider, revokes tokens and blocks login while keeping the re
         ->assertJsonPath('data.is_active', false);
 
     $this->assertDatabaseHas('service_providers', ['id' => $provider->id]);
-    $this->assertDatabaseCount('personal_access_tokens', 0);
+    expect($provider->user->tokens()->count())->toBe(0);
 
     $this->postJson('/api/mobile/login', [
         'email' => 'ana@example.test',
@@ -93,7 +93,11 @@ it('deactivates a provider, revokes tokens and blocks login while keeping the re
 
 it('reactivates a provider so the account can log in again', function () {
     $provider = createServiceProvider('ana@example.test');
-    $provider->user->update(['is_active' => false]);
+    $user = $provider->user;
+    $user->is_active = false;
+    $user->save();
+
+    expect($user->fresh()->is_active)->toBeFalse();
 
     authenticateApiUser(userWithRole('supervisor'));
     $this->patchJson("/api/service-providers/{$provider->id}/activate")
@@ -108,8 +112,13 @@ it('reactivates a provider so the account can log in again', function () {
 
 it('filters service providers by active state', function () {
     createServiceProvider('ana@example.test');
-    createServiceProvider('bruno@example.test')->user->update(['is_active' => false]);
-    $this->actingAs(userWithRole('admin'), 'sanctum');
+    $bruno = createServiceProvider('bruno@example.test');
+    $user = $bruno->user;
+    $user->is_active = false;
+    $user->save();
+
+    expect($user->fresh()->is_active)->toBeFalse();
+    authenticateApiUser(userWithRole('admin'));
 
     $this->getJson('/api/service-providers?active=1')
         ->assertOk()
@@ -124,7 +133,7 @@ it('filters service providers by active state', function () {
 
 it('forbids a prestador from updating or deactivating providers', function () {
     $provider = createServiceProvider('ana@example.test');
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     $this->putJson("/api/service-providers/{$provider->id}", providerPayload(['name' => 'X']))
         ->assertForbidden();
