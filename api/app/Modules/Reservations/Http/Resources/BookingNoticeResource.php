@@ -40,9 +40,15 @@ final class BookingNoticeResource extends JsonResource
                 'scheduledStart' => $this->scheduled_start_at?->toIso8601String(),
                 'scheduledEnd' => $this->scheduled_end_at?->toIso8601String(),
             ],
+            // Context saved when the notice was created. Notices older than this field have nulls.
+            'change' => [
+                'taskStatus' => $this->task_status,
+                'executionPreserved' => (bool) $this->execution_preserved,
+                'action' => $this->action?->value,
+            ],
         ];
     }
-    
+
     // Same rule as the task endpoints: a provider only opens tasks still assigned to them.
     private function taskIsAvailable(): bool
     {

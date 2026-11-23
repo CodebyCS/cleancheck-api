@@ -8,6 +8,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Modules\Properties\Models\ServiceProvider;
 use App\Modules\Reservations\Enums\BookingNoticeType;
+use App\Modules\Reservations\Enums\NoticeAction;
 use App\Modules\Reservations\Models\BookingNotice;
 
 final class RecordTaskNotices
@@ -23,10 +24,10 @@ final class RecordTaskNotices
         // One row of task_assignment_history = one change = one notice per person.
         $dedupKey = "task_assignment:{$assignmentId}";
 
-        $this->notify($task, $newProviderId, BookingNoticeType::TaskAssigned, $dedupKey);
+        $this->notify($task, $newProviderId, BookingNoticeType::TaskAssigned, $dedupKey, NoticeAction::OpenTask);
 
         if ($previousProviderId !== null) {
-            $this->notify($task, $previousProviderId, BookingNoticeType::TaskUnassigned, $dedupKey);
+            $this->notify($task, $previousProviderId, BookingNoticeType::TaskUnassigned, $dedupKey, NoticeAction::None);
         }
     }
 
@@ -38,11 +39,16 @@ final class RecordTaskNotices
         }
 
         // A task is cancelled only once.
-        $this->notify($task, $providerId, BookingNoticeType::TaskCancelled, "task_cancelled:{$task->id}");
+        $this->notify($task, $providerId, BookingNoticeType::TaskCancelled, "task_cancelled:{$task->id}", NoticeAction::None);
     }
 
-    private function notify(Task $task, int $providerId, BookingNoticeType $type, string $dedupKey): void
-    {
+    private function notify(
+        Task $task,
+        int $providerId,
+        BookingNoticeType $type,
+        string $dedupKey,
+        NoticeAction $action,
+    ): void {
         $userId = ServiceProvider::query()->whereKey($providerId)->value('user_id');
 
         // Deactivated accounts cannot sign in, so they get no notices.
@@ -57,6 +63,10 @@ final class RecordTaskNotices
             'user_id' => $userId,
             'booking_id' => $task->booking_id,
             'task_id' => $task->id,
+            // Lets the previous provider know a task they had started was reassigned.
+            'task_status' => $task->status,
+            'execution_preserved' => false,
+            'action' => $action->value,
             'type' => $type->value,
             'dedup_key' => $dedupKey,
             // Stay dates stay empty: task notices are deduplicated by dedup_key only.
