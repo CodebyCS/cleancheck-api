@@ -81,7 +81,7 @@ it('accepts a video up to 50 MB', function () {
 });
 
 it('rejects a video longer than 60 seconds', function () {
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     sendEvidenceTrial($this, fakeVideoFile('limpeza.mp4', 61))
         ->assertUnprocessable()
@@ -92,8 +92,13 @@ it('rejects a video longer than 60 seconds', function () {
 
 it('links an upload to an assigned task and records the authenticated provider', function () {
     $provider = createServiceProvider('evidence-provider@example.test');
-    $task = \App\Models\Task::factory()->create(['service_provider_id' => $provider->id]);
-    $this->actingAs($provider->user, 'sanctum');
+    $task = \App\Models\Task::factory()->create([
+        'service_provider_id' => $provider->id,
+        'status' => 'pending',
+    ]);
+    $initialTaskState = $task->only(['status', 'service_provider_id']);
+    $initialHistoryCount = $task->assignmentHistory()->count();
+    authenticateApiUser($provider->user);
 
     $this->post("/api/my/tasks/{$task->id}/evidence-trials", [
         'file' => fakeVideoFile('limpeza.mp4', 45),
@@ -106,14 +111,31 @@ it('links an upload to an assigned task and records the authenticated provider',
     $trial = \App\Models\EvidenceTrial::query()->sole();
     expect($trial->task_id)->toBe($task->id)
         ->and($trial->user_id)->toBe($provider->user_id)
-        ->and(Storage::disk('local')->exists($trial->path))->toBeTrue();
+        ->and(Storage::disk('local')->exists($trial->path))->toBeTrue()
+        ->and($task->fresh()->only(['status', 'service_provider_id']))->toEqual($initialTaskState)
+        ->and($task->assignmentHistory()->count())->toBe($initialHistoryCount);
+});
+
+it('rejects an invalid file for an assigned task without storing a trial', function () {
+    $provider = createServiceProvider('invalid-evidence-provider@example.test');
+    $task = \App\Models\Task::factory()->create(['service_provider_id' => $provider->id]);
+    authenticateApiUser($provider->user);
+
+    $this->post("/api/my/tasks/{$task->id}/evidence-trials", [
+        'file' => UploadedFile::fake()->create('relatorio.pdf', 100, 'application/pdf'),
+    ], ['Accept' => 'application/json'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('file');
+
+    expect(\App\Models\EvidenceTrial::query()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles())->toBeEmpty();
 });
 
 it('rejects a task-associated upload from a provider without current assignment', function () {
     $assignedProvider = createServiceProvider('assigned-provider@example.test');
     $otherProvider = createServiceProvider('other-provider@example.test');
     $task = \App\Models\Task::factory()->create(['service_provider_id' => $assignedProvider->id]);
-    $this->actingAs($otherProvider->user, 'sanctum');
+    authenticateApiUser($otherProvider->user);
 
     $this->post("/api/my/tasks/{$task->id}/evidence-trials", [
         'file' => fakeVideoFile('limpeza.mp4', 45),
@@ -125,7 +147,7 @@ it('rejects a task-associated upload from a provider without current assignment'
 
 it('rejects a task-associated upload for a nonexistent task without storing it', function () {
     $provider = createServiceProvider('missing-task-provider@example.test');
-    $this->actingAs($provider->user, 'sanctum');
+    authenticateApiUser($provider->user);
 
     $this->post('/api/my/tasks/999999/evidence-trials', [
         'file' => fakeVideoFile('limpeza.mp4', 45),
@@ -150,7 +172,7 @@ it('requires authentication on the task-associated upload route', function () {
 it('rejects a non-provider on the task-associated upload route without storing it', function () {
     $provider = createServiceProvider('task-role-provider@example.test');
     $task = \App\Models\Task::factory()->create(['service_provider_id' => $provider->id]);
-    $this->actingAs(userWithRole('admin'), 'sanctum');
+    authenticateApiUser(userWithRole('admin'));
 
     $this->post("/api/my/tasks/{$task->id}/evidence-trials", [
         'file' => fakeVideoFile('limpeza.mp4', 45),
