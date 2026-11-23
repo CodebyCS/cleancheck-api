@@ -333,6 +333,28 @@ Conta ativa, **qualquer perfil** · JSON · cada pessoa vê só os seus avisos. 
 
 `GET /api/booking-notices/{id}` → `200` com o aviso em `data`, no formato da listagem.
 
+### Contexto da mudança (`change`)
+
+Cada aviso inclui o contexto gravado no momento em que foi criado:
+
+```json
+"change": {
+  "taskStatus": "in_progress",
+  "executionPreserved": true,
+  "action": "continue_task"
+}
+```
+
+| Campo | Significado |
+|---|---|
+| `taskStatus` | Estado da tarefa quando o aviso foi criado (`null` para a equipa e para avisos anteriores a este campo). |
+| `executionPreserved` | `true` quando a mudança chegou com a tarefa já iniciada ou concluída: a execução, o horário, as notas e os impedimentos não são alterados. Para a equipa, indica que alguma tarefa da reserva foi mantida. |
+| `action` | Próximo passo: `check_new_schedule`, `continue_task`, `contact_supervisor`, `review_started_task`, `open_task` ou `none` (`null` em avisos antigos). |
+
+- Processar outra vez a mesma mudança (repetição da sincronização ou do job) não cria um aviso nem volta a marcá-lo como não lido.
+- Uma mudança real que regressa a datas anteriores (A → B → A) volta a mostrar o aviso como não lido.
+- Não há novos valores de `type`; os clientes que não conhecem `change` podem ignorá-lo.
+
 #### Marcar como lido
 
 `PATCH /api/booking-notices/{id}/read` → `200` com o aviso em `data`.
@@ -343,7 +365,7 @@ Conta ativa, **qualquer perfil** · JSON · cada pessoa vê só os seus avisos. 
 
 ### Acesso removido
 
-- `task.available: false` quando a tarefa já não está atribuída a quem recebeu o aviso (reatribuída ou removida).
+- `task.available: false` quando a tarefa já não está atribuída a quem recebeu o aviso (reatribuída, cancelada ou removida). É sempre o caso em `task_unassigned`.
 - O aviso continua visível. A tarefa deixa de abrir: `GET /api/my/tasks/{id}` (prestador) responde `404`.
 - O cliente mostra o aviso sem ligação à tarefa.
 
