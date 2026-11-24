@@ -21,11 +21,13 @@ afterEach(fn () => Carbon::setTestNow());
 
 function referenceHoursProperty(array $overrides = []): Property
 {
+    $provider = createServiceProvider('reference-hours-default@example.test');
     return Property::create(array_merge([
         'name' => 'Casa das Horas',
         'address' => 'Rua Fictícia 7',
         'postal_code' => '1200-001',
         'city' => 'Lisboa',
+        'responsible_service_provider_id' => $provider->id,
     ], $overrides));
 }
 
