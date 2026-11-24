@@ -24,6 +24,7 @@ class StoreTaskRequest extends FormRequest
     {
         return [
             'booking_id' => ['required', 'integer'],
+            'service_provider_id' => ['prohibited'],
         ];
     }
 }
