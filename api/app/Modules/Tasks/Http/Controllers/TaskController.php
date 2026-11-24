@@ -41,7 +41,7 @@ class TaskController extends Controller
      */
     public function store(StoreTaskRequest $request, CreateManualTask $action): JsonResponse
     {
-        $task = $action->execute($request->integer('booking_id'));
+        $task = $action->execute($request->integer('booking_id'), $request->user()->id);
 
         return (new TaskStaffResource($task))
             ->response()
