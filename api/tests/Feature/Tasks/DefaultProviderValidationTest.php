@@ -4,6 +4,8 @@ use App\Modules\Tasks\Validators\TaskGenerationValidator;
 use App\Modules\Tasks\Actions\CreateAssignedTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use App\Modules\Reservations\Models\Booking;
+use App\Modules\Reservations\Models\BookingSource;
 use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
@@ -180,3 +182,29 @@ it('refuses a caller supplied provider when creating a task', function (string $
     $this->assertDatabaseCount('tasks', 0);
     $this->assertDatabaseCount('task_assignment_history', 0);
 })->with(['admin', 'supervisor']);
+
+it('returns a field validation error and persists no task when manual creation has no valid default', function () {
+    createServiceProvider('manual-no-fallback@example.test');
+    $property = icalProperty();
+    $source = BookingSource::create([
+        'property_id' => $property->id,
+        'channel' => 'test',
+        'type' => 'url',
+        'is_active' => true,
+    ]);
+    $booking = Booking::create([
+        'booking_source_id' => $source->id,
+        'external_uid' => 'manual-no-default',
+        'source_check_in_at' => now()->addDays(5),
+        'source_check_out_at' => now()->addDays(7),
+        'status' => 'reserved',
+    ]);
+
+    authenticateApiUser(userWithRole('admin'));
+    $this->postJson('/api/tasks', ['booking_id' => $booking->id])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('responsible_service_provider_id');
+
+    $this->assertDatabaseCount('tasks', 0);
+    $this->assertDatabaseCount('task_assignment_history', 0);
+});
