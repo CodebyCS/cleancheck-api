@@ -4,6 +4,8 @@ namespace App\Modules\Tasks\Validators;
 
 use App\Modules\Tasks\Services\CleaningSchedule;
 use App\Modules\Tasks\Support\BookingSnapshot;
+use App\Modules\Properties\Models\Property;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class TaskGenerationValidator
@@ -72,5 +74,33 @@ class TaskGenerationValidator
                 'property_id' => 'A propriedade está inativa.',
             ]);
         }
+    }
+
+    /** Resolve the current default inside the task creation transaction. */
+    public function defaultProviderId(int $propertyId): int
+    {
+        $property = Property::whereKey($propertyId)->lockForUpdate()->first();
+
+        if ($property === null || ! $property->is_active) {
+            throw ValidationException::withMessages([
+                'property_id' => 'A propriedade não existe ou está inativa.',
+            ]);
+        }
+
+        $providerId = $property->responsible_service_provider_id;
+        $activeProvider = $providerId !== null && DB::table('service_providers')
+            ->join('users', 'users.id', '=', 'service_providers.user_id')
+            ->where('service_providers.id', $providerId)
+            ->where('users.is_active', true)
+            ->lockForUpdate()
+            ->exists();
+
+        if (! $activeProvider) {
+            throw ValidationException::withMessages([
+                'responsible_service_provider_id' => 'Configure um prestador padrão existente e ativo no imóvel antes de criar a tarefa.',
+            ]);
+        }
+
+        return (int) $providerId;
     }
 }
