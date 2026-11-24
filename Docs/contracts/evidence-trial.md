@@ -55,7 +55,7 @@ O tipo é detetado pelo conteúdo do ficheiro, não pela extensão. Para vídeos
 | `403` | Tarefa não está atualmente atribuída ao prestador autenticado | "Só podes enviar ficheiros para uma tarefa atualmente atribuída a ti." |
 | `404` | Tarefa inexistente ou apagada | — |
 | `422` | Sem ficheiro | "Escolha uma fotografia ou um vídeo." |
-| `422` | Formato não aceite | "Formato não aceite. Use JPG, PNG, WEBP ou HEIC para fotografias e MP4 ou MOV para vídeos." |
+| `422` | Formato não aceite | "Formato não aceite. Use JPG, PNG, WEBP, HEIC ou HEIF para fotografias e MP4 ou MOV para vídeos." |
 | `422` | Fotografia acima de 10 MB | "A fotografia não pode ter mais de 10 MB." |
 | `422` | Ficheiro acima de 50 MB | "O ficheiro não pode ter mais de 50 MB." |
 | `422` | Vídeo acima de 60 segundos | "O vídeo não pode ter mais de 60 segundos." |
@@ -63,16 +63,27 @@ O tipo é detetado pelo conteúdo do ficheiro, não pela extensão. Para vídeos
 | `422` | Ficheiro cortado pelo PHP (ver abaixo) | "O ficheiro não foi recebido. Pode ser maior do que o servidor aceita." |
 | `429` | Mais de 10 envios por minuto | — |
 
-## Armazenamento
+## Armazenamento e acesso
 
-- Disco privado `local`, em `storage/app/private/evidence-trials/tasks/{task_id}/providers/{user_id}/`, com nome gerado pelo Laravel.
-- Os ficheiros não têm link público nem endpoint de leitura.
-- Cada envio cria uma linha experimental em `evidence_trials` com tarefa, autor, caminho privado, tipo, tamanho, nome original, aparelho e hora de receção. Também é registado no log da aplicação (`Evidence trial received`).
-- Os ficheiros de ensaio podem ser apagados no fim do ensaio; não são dados de produção.
+- Disco privado `local`, em `storage/app/private/evidence-trials/`, com nomes de ficheiro gerados pelo Laravel. Não existe acesso público direto aos ficheiros.
+- Todos os uploads de ensaio, incluindo os da rota legada, criam um registo em `evidence_trials`. `task_id` é nulo apenas para a rota legada sem associação a tarefa.
+- Só utilizadores autenticados com perfil `admin` podem descarregar um ficheiro, através de `GET /api/evidence-trials/{id}/file`. A rota devolve o ficheiro em binário; prestadores e supervisores recebem `403`.
+- O ficheiro e o registo ficam disponíveis durante 30 dias. O comando `php artisan evidence-trials:prune`, agendado de hora a hora, apaga ficheiros e registos expirados. Ficheiros antigos sem registo também são removidos pela data de modificação.
+- Um registo expirado ou um ficheiro ausente devolve `404` com mensagem genérica, sem caminho do armazenamento. Um envio inválido ou acima do limite devolve `422` e não guarda o ficheiro.
+- Cada envio associado a tarefa regista autor e tarefa. O ensaio continua sem alterar o estado da tarefa nem contar como prova de produção.
+
+### Leitura do ficheiro
+
+| Resultado | Comportamento |
+|---|---|
+| `200` | Ficheiro descarregado pelo administrador autorizado |
+| `401` | Sem sessão válida |
+| `403` | Perfil diferente de `admin` |
+| `404` | Registo inexistente/expirado ou ficheiro ausente; mensagem sem caminho interno |
 
 ## Compatibilidade
 
-`POST /api/evidence-trials` continua disponível para builds de ensaio anteriores. Essa rota não associa o ficheiro a uma tarefa e não cria uma linha em `evidence_trials`, mas usa as mesmas validações de formato, tamanho e duração. A build mobile atual usa apenas a rota associada acima.
+`POST /api/evidence-trials` continua disponível para builds de ensaio anteriores. Essa rota não associa o ficheiro a uma tarefa (`task_id: null`), mas cria um registo de ensaio e usa as mesmas validações de formato, tamanho e duração. A resposta inclui o `id` do registo para permitir a consulta posterior pelo administrador. A build mobile atual usa apenas a rota associada acima.
 
 ## Requisitos do servidor
 
@@ -92,6 +103,6 @@ Se o servidor estiver atrás de nginx, também é preciso `client_max_body_size 
 | Ligado a uma tarefa | Sim, como registo experimental | Sim, como prova associada ao passo e tipo (vídeo inicial/final ou fotografia) |
 | Muda o estado da tarefa | Não | Sim |
 | Guarda registo na base de dados | Sim, em `evidence_trials`; não é consultável como prova de produção | Sim, no modelo final de evidências |
-| Supervisor pode ver o ficheiro | Não | Sim |
+| Acesso ao ficheiro | Apenas `admin`, durante 30 dias | Conforme permissões do fluxo completo |
 
 Os resultados do ensaio em aparelho real (formatos gerados, tamanhos, tempos de envio, rede e problemas) são registados no repositório mobile.

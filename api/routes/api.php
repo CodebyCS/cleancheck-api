@@ -70,6 +70,10 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         ->whereNumber('notice');
 
     // Admin and Supervisor roles are allowed to access management routes.
+    // Only administrators may retrieve private evidence trial files.
+    Route::middleware('role:admin')->get('/evidence-trials/{evidenceTrial}/file', [EvidenceTrialController::class, 'download'])
+        ->whereNumber('evidenceTrial');
+
     Route::middleware('role:admin,supervisor')->group(function (): void {
         // iCal
         Route::post('/reservations/ical/read', IcalReadController::class);

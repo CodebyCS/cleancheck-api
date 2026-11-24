@@ -243,7 +243,7 @@ class StoreEvidenceTrialRequest extends FormRequest
             'file.required' => 'Escolha uma fotografia ou um vídeo.',
             'file.file' => 'O envio do ficheiro falhou. Tente novamente.',
             'file.uploaded' => 'O ficheiro não foi recebido. Pode ser maior do que o servidor aceita.',
-            'file.mimetypes' => 'Formato não aceite. Use JPG, PNG, WEBP ou HEIC para fotografias e MP4 ou MOV para vídeos.',
+            'file.mimetypes' => 'Formato não aceite. Use JPG, PNG, WEBP, HEIC ou HEIF para fotografias e MP4 ou MOV para vídeos.',
             'file.max' => 'O ficheiro não pode ter mais de 50 MB.',
             'device.max' => 'A descrição do aparelho não pode ter mais de 120 caracteres.',
         ];
