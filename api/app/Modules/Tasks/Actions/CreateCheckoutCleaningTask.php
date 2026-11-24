@@ -15,6 +15,7 @@ class CreateCheckoutCleaningTask
         private BookingDataProvider $bookings,
         private CleaningSchedule $cleaningSchedule,
         private TaskGenerationValidator $validator,
+        private CreateAssignedTask $createTask,
     ) {}
 
     public function execute(int $bookingId): ?Task
@@ -40,7 +41,7 @@ class CreateCheckoutCleaningTask
         $schedule = $this->cleaningSchedule->calculate($type, $data->checkOut, $data->nextCheckIn, $data->propertySchedule);
 
         try {
-            return Task::create([
+            return $this->createTask->execute([
                 'booking_id'         => $bookingId,
                 'property_id'        => $data->propertyId,
                 'type'               => $type,
@@ -48,8 +49,14 @@ class CreateCheckoutCleaningTask
                 'scheduled_start_at' => $schedule['scheduled_start_at'],
                 'scheduled_end_at'   => $schedule['scheduled_end_at'],
             ]);
-        } catch (UniqueConstraintViolationException) {
-            return Task::where('booking_id', $bookingId)->where('type', $type)->first();
+        } catch (UniqueConstraintViolationException $exception) {
+            $existing = Task::withTrashed()->where('booking_id', $bookingId)->where('type', $type)->first();
+
+            if ($existing === null) {
+                throw $exception;
+            }
+
+            return $existing->trashed() ? null : $existing;
         }
     }
 }
