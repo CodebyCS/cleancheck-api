@@ -70,6 +70,7 @@ it('does not duplicate checkout tasks when bookings are reimported', function ()
 });
 
 it('preserves imported bookings and logs task creation failure until a valid default is configured', function () {
+    config(['queue.default' => 'sync']);
     Log::spy();
     $property = icalProperty();
     $adapter = new AirbnbAdapter();
@@ -79,11 +80,23 @@ it('preserves imported bookings and logs task creation failure until a valid def
     expect($result->created)->toHaveCount(3)
         ->and(Task::query()->count())->toBe(0);
     $this->assertDatabaseCount('bookings', 3);
+    Log::shouldHaveReceived('warning')->withArgs(function (string $message, array $context) use ($result): bool {
+        return $message === 'Task de checkout não criada.'
+            && in_array($context['booking_id'] ?? null, array_map(fn ($booking) => $booking->id, $result->created), true)
+            && isset($context['errors']['responsible_service_provider_id']);
+    })->atLeast()->once();
 
     $provider = createServiceProvider('fixed-import-default@example.test');
     $property->update(['responsible_service_provider_id' => $provider->id]);
     app(BookingImportService::class)->import($property->id, $adapter->channel(), $parsed);
 
     expect(Task::query()->count())->toBe(3);
-    Log::shouldHaveReceived('warning')->atLeast()->once();
+    foreach (Task::query()->get() as $task) {
+        $this->assertDatabaseHas('task_assignment_history', [
+            'task_id' => $task->id,
+            'previous_service_provider_id' => null,
+            'new_service_provider_id' => $provider->id,
+            'user_id' => null,
+        ]);
+    }
 });
