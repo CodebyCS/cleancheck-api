@@ -49,7 +49,7 @@ As respostas da API incluem `is_overdue` (booleano). É `true` quando a task est
 - O estado inicial é `pending`.
 - `scheduled_start_at`: 11:30 do dia do check-out. Se a propriedade tiver hora de saída (`default_check_out_time`), 30 min depois dessa hora.
 - `scheduled_end_at`: 14:30 do dia do próximo check-in da mesma propriedade. Se a propriedade tiver hora de entrada (`default_check_in_time`), 30 min antes dessa hora. Se não existir próximo check-in conhecido, fica `null`.
-- O prestador de serviços e o valor acordado não são atribuídos na criação.
+- O valor acordado não é atribuído na criação. O prestador é o prestador padrão do imóvel, se estiver ativo (ver [`default-provider.md`](default-provider.md)).
 - O check-in da própria reserva não é obrigatório para criar a limpeza.
 
 ### 3.2 Inspeção antes do check-in (`checkin_inspection`)
