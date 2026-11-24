@@ -71,7 +71,11 @@ it('rejects invalid contract fields', function () {
 it('rejects an inactive responsible provider', function () {
     $property = existingProperty();
     $inactive = createServiceProvider('inativo@example.test');
-    $inactive->user->update(['is_active' => false]);
+    $user = $inactive->user;
+    $user->is_active = false;
+    $user->save();
+
+    expect($user->fresh()->is_active)->toBeFalse();
 
     authenticateApiUser(userWithRole('admin'));
     $this->putJson("/api/properties/{$property->id}", propertyPayload([
@@ -85,7 +89,7 @@ it('rejects an inactive responsible provider', function () {
 
 it('deactivates and activates a property without deleting it', function () {
     $property = existingProperty();
-    $this->actingAs(userWithRole('supervisor'), 'sanctum');
+    authenticateApiUser(userWithRole('supervisor'));
 
     $this->patchJson("/api/properties/{$property->id}/deactivate")
         ->assertOk()
@@ -101,7 +105,7 @@ it('deactivates and activates a property without deleting it', function () {
 it('filters properties by active state', function () {
     existingProperty(['name' => 'Ativo']);
     existingProperty(['name' => 'Inativo', 'is_active' => false]);
-    $this->actingAs(userWithRole('admin'), 'sanctum');
+    authenticateApiUser(userWithRole('admin'));
 
     $this->getJson('/api/properties?active=1')
         ->assertOk()
@@ -118,7 +122,7 @@ it('filters properties by active state', function () {
 
 it('forbids a prestador from updating or deactivating properties', function () {
     $property = existingProperty();
-    $this->actingAs(userWithRole('service_provider'), 'sanctum');
+    authenticateApiUser(userWithRole('service_provider'));
 
     $this->putJson("/api/properties/{$property->id}", propertyPayload(['name' => 'X']))
         ->assertForbidden();

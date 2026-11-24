@@ -70,6 +70,10 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         ->whereNumber('notice');
 
     // Admin and Supervisor roles are allowed to access management routes.
+    // Only administrators may retrieve private evidence trial files.
+    Route::middleware('role:admin')->get('/evidence-trials/{evidenceTrial}/file', [EvidenceTrialController::class, 'download'])
+        ->whereNumber('evidenceTrial');
+
     Route::middleware('role:admin,supervisor')->group(function (): void {
         // iCal
         Route::post('/reservations/ical/read', IcalReadController::class);
@@ -94,6 +98,9 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
 
     Route::middleware('role:service_provider')->group(function (): void {
         Route::post('/tasks/{task}/impediments', [TaskImpedimentController::class, 'store'])->whereNumber('task');
+        Route::post('/my/tasks/{task}/evidence-trials', [EvidenceTrialController::class, 'storeForTask'])
+            ->whereNumber('task')
+            ->middleware('throttle:10,1');
     
         Route::get('/my/tasks', [ProviderTaskController::class, 'index']);
         Route::get('/my/tasks/{task}', [ProviderTaskController::class, 'show'])->whereNumber('task');
@@ -102,7 +109,7 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::patch('/my/tasks/{task}/notes', [ProviderTaskController::class, 'updateNotes'])->whereNumber('task');
     });
 
-    // Trial upload to test camera and upload on real devices (not linked to tasks).
+    // Legacy unlinked trial route retained for older installed builds.
     Route::post('/evidence-trials', [EvidenceTrialController::class, 'store'])->middleware('throttle:10,1');
 
     Route::get('/properties', [PropertyController::class, 'index']);

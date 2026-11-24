@@ -7,6 +7,7 @@ namespace App\Modules\Reservations\Models;
 use App\Models\Task;
 use App\Models\User;
 use App\Modules\Reservations\Enums\BookingNoticeType;
+use App\Modules\Reservations\Enums\NoticeAction;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'user_id',
     'booking_id',
     'task_id',
+    'task_status',
+    'execution_preserved',
+    'action',
     'type',
     'dedup_key',
     'scheduled_start_at',
@@ -29,6 +33,8 @@ final class BookingNotice extends Model
     {
         return [
             'type' => BookingNoticeType::class,
+            'action' => NoticeAction::class,
+            'execution_preserved' => 'boolean',
             'check_in_on' => 'immutable_date',
             'check_out_on' => 'immutable_date',
             'read_at' => 'immutable_datetime',
