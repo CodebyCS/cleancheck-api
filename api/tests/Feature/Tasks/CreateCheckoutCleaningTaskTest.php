@@ -3,6 +3,7 @@
 namespace Tests\Feature\Tasks;
 
 use App\Models\Task;
+use App\Modules\Tasks\Actions\CreateAssignedTask;
 use App\Modules\Tasks\Actions\CreateCheckoutCleaningTask;
 use App\Modules\Tasks\Contracts\BookingDataProvider;
 use App\Modules\Tasks\Services\CleaningSchedule;
@@ -48,6 +49,14 @@ class CreateCheckoutCleaningTaskTest extends TestCase
 
             $table->unique(['booking_id', 'type']);
         });
+        Schema::create('task_assignment_history', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('task_id');
+            $table->unsignedBigInteger('previous_service_provider_id')->nullable();
+            $table->unsignedBigInteger('new_service_provider_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->timestamp('created_at')->useCurrent();
+        });
     }
 
     private function snapshot(): BookingSnapshot
@@ -86,6 +95,7 @@ class CreateCheckoutCleaningTaskTest extends TestCase
             $bookings,
             new CleaningSchedule(),
             $validator,
+            new CreateAssignedTask($validator),
         );
     }
 
