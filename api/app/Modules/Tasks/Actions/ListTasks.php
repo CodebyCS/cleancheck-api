@@ -15,7 +15,7 @@ class ListTasks
     {
         $query = Task::query()
             ->with(['property', 'serviceProvider.user', 'completedBy.role'])
-            ->withExists(['videos as has_video']);
+            ->withExists(['videos as has_video', 'evidences as has_evidence']);
 
         if (($filters['deleted'] ?? null) === 'only') {
             $query->onlyTrashed();
@@ -29,7 +29,7 @@ class ListTasks
     {
         $query = Task::query()
             ->with(['property', 'completedBy.role'])
-            ->withExists(['videos as has_video'])
+            ->withExists(['videos as has_video', 'evidences as has_evidence'])
             ->where('service_provider_id', $serviceProviderId);
 
         return $this->filtered($query, $filters);
@@ -40,7 +40,7 @@ class ListTasks
     {
         return Task::withTrashed()
             ->with(['property', 'serviceProvider.user', 'completedBy.role'])
-            ->withExists(['videos as has_video'])
+            ->withExists(['videos as has_video', 'evidences as has_evidence'])
             ->findOrFail($taskId);
     }
 
@@ -49,7 +49,7 @@ class ListTasks
     {
         return Task::query()
             ->with(['property', 'completedBy.role'])
-            ->withExists(['videos as has_video'])
+            ->withExists(['videos as has_video', 'evidences as has_evidence'])
             ->where('service_provider_id', $serviceProviderId)
             ->findOrFail($taskId);
     }
