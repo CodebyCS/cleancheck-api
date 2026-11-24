@@ -94,7 +94,7 @@ Todas as eliminações são lógicas (soft delete).
 | Concluir | Prestador | Só as suas tasks `in_progress`. Idempotente: se já está `completed`, devolve-a sem alterar `completed_at`. Não exige fotos nem vídeo |
 | Cancelar por reserva | Booking (automático) | Reserva cancelada: as tasks `pending` ficam `cancelled` e são apagadas logicamente. Não toca em `in_progress` nem `completed` (fica em log). Repetir a chamada é seguro |
 | Apagar por reserva | Booking (automático) | Reserva removida: apaga logicamente as tasks da reserva (sem mudar o estado). Não apaga `in_progress` nem `completed` (fica em log). Repetir a chamada é seguro |
-| Cancelar | Adm/supervisor | Task `pending` fica `cancelled` e é apagada logicamente. Repetir o pedido é seguro (sucesso sem alterações). Erro se estiver `in_progress` ou `completed`, ou se já tiver sido apagada por outra operação |
+| Cancelar | Adm/supervisor | Task `pending` fica `cancelled` e é apagada logicamente. Repetir o pedido é seguro (sucesso sem alterações). Erro se estiver `in_progress` ou `completed`, ou se já tiver sido apagada por outra operação. Cada cancelamento efetivo regista origem, utilizador responsável quando aplicável e data/hora em `task_cancellation_history`; repetições não duplicam o histórico. |
 | Apagar | Adm/supervisor | Soft delete sem mudar o estado (para remoções administrativas, por exemplo uma task criada por engano). Erro se a task estiver `in_progress` ou `completed` |
 | Restaurar | Adm/supervisor | Só tasks apagadas (canceladas ou apagadas). A reserva tem de existir e estar ativa, os dados são revalidados, e não se restaura se a reserva (checkout) ou o prazo (inspeção) já passou. A task volta a `pending`, com `started_at` e `completed_at` limpos e as datas recalculadas (na inspeção, o início passa a ser o momento do restauro) |
 
@@ -116,10 +116,12 @@ Lista paginada, ordenada por `scheduled_start_at` e depois por `id`. Filtros opc
 | `property_id` | Inteiro |
 | `status` | `pending`, `in_progress`, `completed` ou `cancelled` |
 | `type` | `checkout_cleaning` ou `checkin_inspection` |
+| `unassigned` | Booleano. Quando `true`, devolve apenas tarefas sem prestador atribuído |
+| `overdue` | Booleano. Quando `true`, devolve tarefas `pending` ou `in_progress` cujo `scheduled_end_at` já passou |
 | `deleted` | `only`: devolve só as tasks apagadas (incluindo as canceladas). Por defeito, as apagadas não aparecem |
 | `per_page` | 1 a 100, por defeito 15 |
 
-Cada elemento: `id`, `booking_id`, `property`, `property_address`, `type`, `scheduled_start_at`, `scheduled_end_at`, `started_at`, `is_overdue`, `service_provider_id`, `service_provider` (nome do prestador), `agreed_amount`, `status`, `completed_at`, `completed_by` (nome de quem concluiu), `updated_at`, `deleted_at`, `notes` e `provider_notes`.
+Cada elemento: `id`, `booking_id`, `property`, `property_address`, `type`, `scheduled_start_at`, `scheduled_end_at`, `started_at`, `is_overdue`, `service_provider_id`, `service_provider` (nome do prestador), `agreed_amount`, `status`, `completed_at`, `completed_by` (nome de quem concluiu), `updated_at`, `deleted_at`, `notes`, `provider_notes` e `missing_evidence`.
 
 #### `GET /api/tasks/{id}` (admin e supervisor)
 
@@ -174,6 +176,7 @@ Cancela a task: `status` passa a `cancelled` e a task é apagada logicamente. Re
 - `422` se a task estiver `in_progress` ou `completed`.
 - `422` se a task já foi apagada por outra operação (`DELETE`): uma remoção administrativa não se transforma em cancelamento.
 - `404` se a task não existir.
+- Cada cancelamento efetivo regista uma entrada em `task_cancellation_history`. As origens possíveis são `manual`, `booking_cancelled` e `property_deactivated`; o utilizador é nulo quando o cancelamento é automático. Repetir um cancelamento não cria entradas duplicadas.
 
 #### `DELETE /api/tasks/{id}` (admin e supervisor)
 
@@ -193,7 +196,7 @@ Um utilizador sem registo de prestador recebe `403` em todas as rotas `/api/my/.
 
 Lista paginada das tasks atribuídas ao prestador autenticado. Mesmos filtros da lista de staff, exceto `deleted` (enviá-lo responde `422`).
 
-Cada elemento: `id`, `property`, `property_address`, `access_instructions`, `type`, `scheduled_start_at`, `scheduled_end_at`, `is_overdue`, `status`, `started_at`, `completed_at` e `provider_notes`.
+Cada elemento: `id`, `property`, `property_address`, `access_instructions`, `type`, `scheduled_start_at`, `scheduled_end_at`, `is_overdue`, `status`, `started_at`, `completed_at`, `provider_notes` e `missing_evidence`.
 
 #### `GET /api/my/tasks/{id}` (service_provider)
 
@@ -214,8 +217,22 @@ Conclui a task: `status` passa a `completed` e `completed_at` fica com o momento
 
 - Idempotente: se a task já está `completed`, devolve-a sem alterar nada (`completed_at` mantém-se).
 - Só tasks `in_progress` podem ser concluídas; as restantes respondem `422`.
-- Não exige fotos nem vídeo. Esses requisitos serão acrescentados quando existirem.
+- Foto e vídeo são opcionais; a conclusão não depende do envio de mídia.
+- As respostas incluem `missing_evidence`: é `true` quando a tarefa foi concluída pelo prestador sem foto nem vídeo. É `false` quando existe pelo menos uma foto ou um vídeo, ou quando a tarefa foi concluída por admin/supervisor.
+- Uma tarefa concluída por admin/supervisor não fica com mídia pendente.
 - Responde `404` se a task não existir, estiver apagada ou não for do prestador.
+
+#### `POST /api/my/tasks/{id}/evidence` (service_provider)
+
+Envia uma foto ou vídeo para uma tarefa atribuída ao prestador autenticado, em estado `in_progress` ou `completed`. O pedido usa `multipart/form-data`, com o arquivo no campo `file`. Tipos aceitos: JPG, PNG, WEBP ou HEIC para fotos; MP4 ou MOV para vídeos. O limite é 10 MB para fotos e 50 MB para vídeos.
+
+O arquivo é armazenado em disco privado e os metadados ficam associados à tarefa. A resposta é `201` com os metadados da evidência. O envio é opcional e não bloqueia a conclusão.
+
+#### Consulta de evidências (admin e supervisor)
+
+`GET /api/tasks/{id}/evidence` lista as evidências da tarefa. Cada item inclui `id`, `kind`, `mime_type`, `size_bytes`, `original_name`, `created_at` e `file_url`.
+
+`GET /api/tasks/{id}/evidence/{evidence}/file` transmite o arquivo privado. Os arquivos não são públicos.
 
 #### `PATCH /api/my/tasks/{id}/notes` (service_provider)
 
@@ -229,8 +246,8 @@ Atualiza `provider_notes`, um campo separado das notas administrativas (`notes`)
 
 | Rotas | Perfil |
 |---|---|
-| `GET /api/tasks`, `GET /api/tasks/{id}`, `POST /api/tasks`, `PATCH`, `DELETE`, `cancel`, `restore` | `admin` e `supervisor` |
-| `GET /api/my/tasks`, `GET /api/my/tasks/{id}`, `start`, `complete` | `service_provider` |
+| `GET /api/tasks`, `GET /api/tasks/{id}`, `POST /api/tasks`, `PATCH`, `DELETE`, `cancel`, `restore`, `complete`, `GET /api/tasks/{id}/evidence`, `GET /api/tasks/{id}/evidence/{evidence}/file` | `admin` e `supervisor` |
+| `GET /api/my/tasks`, `GET /api/my/tasks/{id}`, `start`, `complete`, `PATCH /api/my/tasks/{id}/notes`, `POST /api/my/tasks/{id}/evidence` | `service_provider` |
 
 A verificação de perfil por rota é feita pelo middleware `role` nas rotas (ver secção 7).
 
@@ -378,7 +395,6 @@ Estes lembretes correspondem aos comentários `TODO` nas rotas e no `AppServiceP
 
 ### Melhorias futuras
 
-- Notas do prestador com autoria/histórico, checklist e anexos de evidência. A tarefa continua podendo ser concluída sem foto ou vídeo; media é opcional.
-- Indicador de falta de media, se o frontend vier a precisar dele.
+- A tarefa continua podendo ser concluída sem foto ou vídeo; media é opcional.
 - Recalcular a limpeza da reserva anterior quando o check-in seguinte mudar.
 - Integrar listagem, detalhe e execução das tarefas na interface web/mobile.
