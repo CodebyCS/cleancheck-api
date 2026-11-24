@@ -55,6 +55,58 @@ it('creates each manual and automatic task with the current default and records 
         ->and($automatic->assignmentHistory()->first()->new_service_provider_id)->toBe($second->id);
 });
 
+it('keeps existing assignment history when the property default changes and a task is manually reassigned', function () {
+    $providerA = createServiceProvider('point-two-a@example.test');
+    $providerB = createServiceProvider('point-two-b@example.test');
+    $providerC = createServiceProvider('point-two-c@example.test');
+    $property = icalProperty(['responsible_service_provider_id' => $providerA->id]);
+    $create = app(CreateAssignedTask::class);
+    $attributes = [
+        'property_id' => $property->id,
+        'status' => 'pending',
+        'scheduled_start_at' => now(),
+    ];
+
+    $oldTask = $create->execute($attributes + [
+        'booking_id' => 20,
+        'type' => 'checkin_inspection',
+    ], userWithRole('admin')->id);
+    $originalHistory = $oldTask->assignmentHistory()->firstOrFail()->only([
+        'previous_service_provider_id', 'new_service_provider_id', 'user_id', 'created_at',
+    ]);
+
+    $property->update(['responsible_service_provider_id' => $providerB->id]);
+    $newTask = $create->execute($attributes + [
+        'booking_id' => 21,
+        'type' => 'checkout_cleaning',
+    ]);
+
+    expect($oldTask->fresh()->service_provider_id)->toBe($providerA->id)
+        ->and($oldTask->assignmentHistory()->count())->toBe(1)
+        ->and($oldTask->assignmentHistory()->first()->only([
+            'previous_service_provider_id', 'new_service_provider_id', 'user_id', 'created_at',
+        ]))->toEqual($originalHistory)
+        ->and($newTask->service_provider_id)->toBe($providerB->id)
+        ->and($newTask->assignmentHistory()->first()->new_service_provider_id)->toBe($providerB->id)
+        ->and($newTask->assignmentHistory()->first()->user_id)->toBeNull();
+
+    $actor = userWithRole('supervisor');
+    authenticateApiUser($actor);
+    $this->patchJson("/api/tasks/{$oldTask->id}", [
+        'service_provider_id' => $providerC->id,
+    ])->assertOk()->assertJsonPath('data.service_provider_id', $providerC->id);
+
+    $history = $oldTask->assignmentHistory()->orderBy('id')->get();
+    expect($oldTask->fresh()->service_provider_id)->toBe($providerC->id)
+        ->and($history)->toHaveCount(2)
+        ->and($history[0]->new_service_provider_id)->toBe($providerA->id)
+        ->and($history[0]->user_id)->not->toBeNull()
+        ->and($history[1]->previous_service_provider_id)->toBe($providerA->id)
+        ->and($history[1]->new_service_provider_id)->toBe($providerC->id)
+        ->and($history[1]->user_id)->toBe($actor->id)
+        ->and($history[1]->created_at)->not->toBeNull();
+});
+
 it('rolls back task creation when the initial history cannot be stored', function () {
     $provider = createServiceProvider('rollback-default@example.test');
     $property = icalProperty(['responsible_service_provider_id' => $provider->id]);
