@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('evidence_trials', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('task_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('task_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('path');
             $table->string('kind', 16);
