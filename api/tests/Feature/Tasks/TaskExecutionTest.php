@@ -76,7 +76,7 @@ it('starts and completes an assigned task without requiring evidence and safely 
         ->assertJsonPath('data.id', $task->id)
         ->assertJsonPath('data.status', 'completed')
         ->assertJsonPath('data.has_video', false)
-        ->assertJsonPath('data.missing_video', true)
+        ->assertJsonPath('data.missing_evidence', true)
         ->assertJsonPath('data.started_at', $startedAt);
 
     $completedAt = $completeResponse->json('data.completed_at');
@@ -190,7 +190,7 @@ it('completes an in-progress task through the staff endpoint', function (string 
         ->assertJsonPath('data.id', $task->id)
         ->assertJsonPath('data.status', 'completed')
         ->assertJsonPath('data.has_video', false)
-        ->assertJsonPath('data.missing_video', false)
+        ->assertJsonPath('data.missing_evidence', false)
         ->assertJsonPath('data.completed_by', $staffUser->name);
 
     expect($task->fresh()->completed_by_user_id)->toBe($staffUser->id)
