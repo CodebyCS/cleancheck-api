@@ -3,6 +3,7 @@
 use App\Modules\Reservations\Jobs\SyncBookingSource;
 use App\Models\EvidenceTrial;
 use App\Modules\Reservations\Models\BookingSource;
+use App\Modules\Alerts\Services\DetectTaskAlerts;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -56,3 +57,11 @@ Artisan::command('evidence-trials:prune', function () {
 })->purpose('Remove evidence trial files and records older than 30 days');
 
 Schedule::command('evidence-trials:prune')->hourly()->withoutOverlapping();
+
+Artisan::command('alerts:detect', function (DetectTaskAlerts $detector) {
+    $result = $detector->run();
+
+    $this->info("{$result['opened']} alerta(s) aberto(s), {$result['resolved']} resolvido(s).");
+})->purpose('Open and resolve task delay alerts');
+
+Schedule::command('alerts:detect')->everyMinute()->withoutOverlapping();
