@@ -15,7 +15,7 @@ Perfis (nomes dos roles): `admin`, `supervisor` e `service_provider`. Nas secç�
 | `id` | Identificador único da tarefa |
 | `booking_id` | Identificador da reserva associada |
 | `property_id` | Identificador da propriedade associada |
-| `service_provider_id` | Prestador de serviços atribuído. Pode ser nulo inicialmente |
+| `service_provider_id` | Prestador de serviços atribuído. Novas tasks usam o prestador padrão ativo configurado no imóvel |
 | `type` | Tipo de tarefa: `checkout_cleaning` ou `checkin_inspection` |
 | `status` | Estado da tarefa: `pending`, `in_progress`, `completed` ou `cancelled` |
 | `scheduled_start_at` | Início da janela operacional |
@@ -47,9 +47,9 @@ As respostas da API incluem `is_overdue` (booleano). É `true` quando a task est
 
 - Criada automaticamente, a partir de uma reserva.
 - O estado inicial é `pending`.
+- O prestador responsável é obtido de `properties.responsible_service_provider_id` no momento da criação. O prestador e o utilizador associado têm de existir e estar ativos; não é escolhido um substituto automaticamente. O valor acordado não é atribuído na criação.
 - `scheduled_start_at`: 11:30 do dia do check-out. Se a propriedade tiver hora de saída (`default_check_out_time`), 30 min depois dessa hora.
 - `scheduled_end_at`: 14:30 do dia do próximo check-in da mesma propriedade. Se a propriedade tiver hora de entrada (`default_check_in_time`), 30 min antes dessa hora. Se não existir próximo check-in conhecido, fica `null`.
-- O prestador de serviços e o valor acordado não são atribuídos na criação.
 - O check-in da própria reserva não é obrigatório para criar a limpeza.
 
 ### 3.2 Inspeção antes do check-in (`checkin_inspection`)
@@ -127,7 +127,7 @@ Detalhe de uma task, mesmo apagada ou cancelada, dentro de `data`. Mesmos campos
 
 #### `POST /api/tasks` (admin e supervisor)
 
-Cria uma inspeção (`checkin_inspection`) para uma reserva.
+Cria uma inspeção (`checkin_inspection`) para uma reserva, atribuindo o prestador padrão ativo do imóvel associado.
 
 Corpo:
 
@@ -135,7 +135,7 @@ Corpo:
 { "booking_id": 12 }
 ```
 
-Resposta `201` com a task criada. Erros `422`: reserva não encontrada, reserva sem propriedade ou sem check-in, prazo já passado, ou já existe inspeção para a reserva.
+Resposta `201` com a task criada. Erros `422`: reserva não encontrada, reserva sem propriedade ou sem check-in, prazo já passado, já existe inspeção para a reserva, ou o imóvel não tem um prestador padrão existente e ativo. Neste último caso, `errors.responsible_service_provider_id` explica que é necessário configurar um prestador ativo. `service_provider_id` enviado no pedido é rejeitado; não é possível escolher um prestador alternativo neste endpoint.
 
 #### `PATCH /api/tasks/{id}` (admin e supervisor)
 
@@ -164,7 +164,7 @@ Content-Type: application/json
 
 A resposta `200` devolve a task atualizada, incluindo `id` e `service_provider_id`. As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
 
-Cada alteração efetiva cria uma entrada em `task_assignment_history` com `task_id`, `previous_service_provider_id` (`null` na primeira atribuição), `new_service_provider_id`, `user_id` do autor e `created_at`. A atualização da task e a criação da entrada ocorrem na mesma transação. As atribuições existentes antes desta funcionalidade não têm histórico retroativo. A eliminação física de tarefas ou prestadores referenciados pelo histórico é restringida; a eliminação normal de tasks continua lógica.
+Cada alteração efetiva cria uma entrada em `task_assignment_history` com `task_id`, `previous_service_provider_id` (`null` na primeira atribuição), `new_service_provider_id`, `user_id` do autor e `created_at`. A atualização da task e a criação da entrada ocorrem na mesma transação. Na criação manual, `user_id` identifica o utilizador autenticado; na criação automática, `user_id: null` identifica o sistema. As atribuições existentes antes desta funcionalidade não têm histórico retroativo. A eliminação física de tarefas ou prestadores referenciados pelo histórico é restringida; a eliminação normal de tasks continua lógica.
 
 #### `POST /api/tasks/{id}/cancel` (admin e supervisor)
 
@@ -239,7 +239,8 @@ A verificação de perfil por rota é feita pelo middleware `role` nas rotas (ve
 - O funcionamento depende de reservas e propriedades válidas na base de dados.
 - **Autorização por perfil:** as rotas de gestão (`/tasks...`) exigem `admin` ou `supervisor`; as `/my/tasks/*` e os impedimentos exigem `service_provider` (middleware `role`). Um perfil sem permissão recebe `403`.
 - **Formato das respostas:** listagem, detalhe e endpoints de escrita que devolvem uma tarefa usam Resources com envelope `data`. Cancelamento e remoção respondem `204`, sem corpo.
-- `responsible_service_provider_id` e `base_cleaning_amount` ainda não são usados pelas Tasks. `access_instructions` já é devolvido no resource do prestador.
+- `responsible_service_provider_id` define o prestador padrão usado apenas por novas tasks. Alterar esse campo não modifica tasks existentes nem o respetivo histórico. `base_cleaning_amount` ainda não é usado pelas Tasks. `access_instructions` já é devolvido no resource do prestador.
+- Se uma reserva importada não tiver um prestador padrão existente e ativo, a reserva mantém-se guardada, a task de limpeza não é criada e o listener regista um `warning` com `booking_id` e erros. Uma reimportação volta a tentar gerar a task após a correção do prestador padrão.
 - A desativação de uma propriedade já cancela e apaga logicamente as tasks `pending` elegíveis. O bloqueio da desativação de um prestador com tarefas abertas ainda aguarda a integração de `ProviderOpenTasks` pelo módulo Properties.
 - A limpeza da reserva anterior da mesma propriedade **não é recalculada** quando um check-in entra, muda ou sai. O seu `scheduled_end_at` pode ficar desatualizado.
 - Pedidos simultâneos para criar a limpeza da mesma reserva: o índice único protege contra duplicados e o segundo pedido devolve a task já criada.
