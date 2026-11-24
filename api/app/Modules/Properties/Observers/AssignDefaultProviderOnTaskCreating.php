@@ -5,6 +5,7 @@ namespace App\Modules\Properties\Observers;
 use App\Models\Task;
 use App\Modules\Properties\Models\Property;
 use App\Modules\Properties\Models\ServiceProvider;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Exposes the property's default provider to task creation without changing the Tasks module.
@@ -28,6 +29,11 @@ class AssignDefaultProviderOnTaskCreating
 
     public function activeDefaultProviderId(int $propertyId): ?int
     {
+        // Some isolated task tests build only the tasks table; without properties there is no default.
+        if (! Schema::hasTable('properties')) {
+            return null;
+        }
+
         $providerId = Property::query()
             ->whereKey($propertyId)
             ->value('responsible_service_provider_id');
