@@ -19,11 +19,13 @@ afterEach(fn () => Carbon::setTestNow());
 
 function rescheduleProperty(): Property
 {
+    $provider = createServiceProvider('reschedule-default@example.test');
     return Property::create([
         'name' => 'Casa do Reagendamento',
         'address' => 'Rua Fictícia 11',
         'postal_code' => '1200-011',
         'city' => 'Lisboa',
+        'responsible_service_provider_id' => $provider->id,
     ]);
 }
 
