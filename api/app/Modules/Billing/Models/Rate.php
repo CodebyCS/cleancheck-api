@@ -13,6 +13,9 @@ class Rate extends Model
 {
     public const DEFAULT_CURRENCY = 'EUR';
 
+    /** Task types that can have a rate. */
+    public const TASK_TYPES = ['checkout_cleaning', 'checkin_inspection'];
+
     /**
      * Default values kept in sync with the database defaults.
      *
