@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Task;
+use App\Modules\Properties\Observers\AssignDefaultProviderOnTaskCreating;
 use App\Modules\Reservations\Events\BookingCancelled;
 use App\Modules\Reservations\Events\BookingDeleted;
 use App\Modules\Reservations\Events\BookingImported;
@@ -71,6 +73,10 @@ class AppServiceProvider extends ServiceProvider
 
         Event::listen(TaskAssigned::class, [RecordNoticesOnTaskChange::class, 'handleAssigned']);
         Event::listen(TaskCancelled::class, [RecordNoticesOnTaskChange::class, 'handleCancelled']);
+
+        // New tasks get the property's default provider (only when active).
+        Task::observe(AssignDefaultProviderOnTaskCreating::class);
+
         Event::listen(
             BookingUpdated::class,
             UpdateTasksOnBookingUpdated::class,
