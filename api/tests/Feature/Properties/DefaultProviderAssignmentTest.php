@@ -114,6 +114,24 @@ it('leaves the task unassigned when the property has no default provider', funct
         ->assertJsonPath('data.0.warnings.0.code', 'no_default_provider');
 });
 
+it('rejects a nonexistent property default without choosing another provider', function () {
+    $property = defaultProviderProperty(null);
+    createServiceProvider('disponivel@example.test');
+    authenticateApiUser(userWithRole('admin'));
+
+    $this->putJson("/api/properties/{$property->id}", [
+        'name' => $property->name,
+        'address' => $property->address,
+        'postal_code' => $property->postal_code,
+        'city' => $property->city,
+        'responsible_service_provider_id' => 999999,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('responsible_service_provider_id');
+
+    expect($property->fresh()->responsible_service_provider_id)->toBeNull()
+        ->and(defaultProviderCleaning($property->fresh())->service_provider_id)->toBeNull();
+});
+
 it('applies a new default provider only to future tasks', function () {
     $first = createServiceProvider('primeiro@example.test');
     $second = createServiceProvider('segundo@example.test');

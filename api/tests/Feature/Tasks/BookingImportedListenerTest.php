@@ -39,6 +39,35 @@ it('creates checkout cleaning tasks when bookings are imported', function () {
     }
 });
 
+it('assigns the active property default to imported checkout cleaning tasks', function () {
+    $provider = createServiceProvider('import-default@example.test');
+    $property = icalProperty();
+    $property->update(['responsible_service_provider_id' => $provider->id]);
+
+    $adapter = new AirbnbAdapter();
+    $parseResult = $adapter->parseFeed(
+        icalFixture('airbnb-valid.ics'),
+        $property->id,
+    );
+
+    $importResult = app(BookingImportService::class)->import(
+        $property->id,
+        $adapter->channel(),
+        $parseResult,
+    );
+
+    expect($importResult->created)->toHaveCount(3);
+
+    foreach ($importResult->created as $booking) {
+        $this->assertDatabaseHas('tasks', [
+            'booking_id' => $booking->id,
+            'property_id' => $property->id,
+            'type' => 'checkout_cleaning',
+            'service_provider_id' => $provider->id,
+        ]);
+    }
+});
+
 it('does not duplicate checkout tasks when bookings are reimported', function () {
     $property = icalProperty();
 
