@@ -98,8 +98,9 @@ it('rejects assignment by a provider or an unauthenticated user', function () {
 });
 
 it('rejects nonexistent or inactive providers without editing other fields', function () {
+    $current = assignmentProvider();
     $inactive = assignmentProvider(false);
-    $task = assignmentTask();
+    $task = assignmentTask('pending', $current->id);
 
     authenticateApiUser(userWithRole('admin'));
 
@@ -111,8 +112,9 @@ it('rejects nonexistent or inactive providers without editing other fields', fun
             ->assertUnprocessable()
             ->assertJsonValidationErrors('service_provider_id');
 
-        expect($task->fresh()->service_provider_id)->toBeNull()
-            ->and($task->fresh()->notes)->toBeNull();
+        expect($task->fresh()->service_provider_id)->toBe($current->id)
+            ->and($task->fresh()->notes)->toBeNull()
+            ->and($task->assignmentHistory()->count())->toBe(0);
     }
 });
 
@@ -153,8 +155,9 @@ it('records first assignment and successive reassignments without losing history
         ->and($history[1]->new_service_provider_id)->toBe($new->id)
         ->and($history[2]->previous_service_provider_id)->toBe($new->id)
         ->and($history[2]->new_service_provider_id)->toBe($old->id)
-        ->and($history[2]->user_id)->toBe($actor->id)
-        ->and($history[2]->created_at)->not->toBeNull();
+        ->and($history->every(fn (TaskAssignmentHistory $entry) =>
+            (int) $entry->user_id === $actor->id && $entry->created_at !== null,
+        ))->toBeTrue();
 });
 
 it('allows reassignment in non-completed states', function (string $status) {
