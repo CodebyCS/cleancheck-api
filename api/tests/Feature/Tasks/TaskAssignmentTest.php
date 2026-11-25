@@ -81,16 +81,20 @@ it('rejects assignment by a provider or an unauthenticated user', function () {
 
     $this->patchJson("/api/tasks/{$task->id}", [
         'service_provider_id' => $provider->id,
+        'notes' => 'Unauthenticated edit',
     ])->assertUnauthorized();
 
     authenticateApiUser(userWithRole('service_provider'));
 
     $this->patchJson("/api/tasks/{$task->id}", [
             'service_provider_id' => $provider->id,
+            'notes' => 'Provider edit',
         ])
         ->assertForbidden();
 
-    expect($task->fresh()->service_provider_id)->toBeNull();
+    expect($task->fresh()->service_provider_id)->toBeNull()
+        ->and($task->fresh()->notes)->toBeNull()
+        ->and($task->assignmentHistory()->count())->toBe(0);
 });
 
 it('rejects nonexistent or inactive providers without editing other fields', function () {
