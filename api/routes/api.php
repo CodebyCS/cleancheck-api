@@ -15,6 +15,7 @@ use App\Modules\Reservations\Http\Controllers\BookingNoticeController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
 use App\Modules\Tasks\Http\Controllers\TaskImpedimentController;
 use App\Modules\Tasks\Http\Controllers\ProviderTaskController;
+use App\Modules\Alerts\Http\Controllers\TaskAlertController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -94,6 +95,11 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
             ->whereNumber('property');
         Route::patch('/bookings/{booking}/schedule', [BookingController::class, 'updateSchedule'])
             ->whereNumber('booking');
+
+        // Task alerts
+        Route::get('/task-alerts', [TaskAlertController::class, 'index']);
+        Route::patch('/task-alerts/{alert}/resolve', [TaskAlertController::class, 'resolve'])
+            ->whereNumber('alert');
     });
 
     Route::middleware('role:service_provider')->group(function (): void {
