@@ -49,6 +49,18 @@ class CreateManualTaskTest extends TestCase
 
             $table->unique(['booking_id', 'type']);
         });
+
+        // CreateAssignedTask records the initial assignment in this table.
+        // This unit test uses a deliberately minimal SQLite schema with FK
+        // checks disabled, so mirror the columns needed by the relation.
+        Schema::create('task_assignment_history', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('task_id');
+            $table->unsignedBigInteger('previous_service_provider_id')->nullable();
+            $table->unsignedBigInteger('new_service_provider_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->timestamp('created_at')->useCurrent();
+        });
     }
 
     private function snapshot(): BookingSnapshot

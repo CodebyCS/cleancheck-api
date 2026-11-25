@@ -10,6 +10,24 @@ use App\Modules\Reservations\Models\BookingSource;
 
 uses(RefreshDatabase::class);
 
+function taskBookingForProperty(int $propertyId, string $uid): Booking
+{
+    $source = BookingSource::create([
+        'property_id' => $propertyId,
+        'channel' => 'test',
+        'type' => 'url',
+        'is_active' => true,
+    ]);
+
+    return Booking::create([
+        'booking_source_id' => $source->id,
+        'external_uid' => $uid,
+        'source_check_in_at' => now()->addDays(5),
+        'source_check_out_at' => now()->addDays(7),
+        'status' => 'reserved',
+    ]);
+}
+
 it('uses only the current active default configured on the property', function () {
     $first = createServiceProvider('default-a@example.test');
     $second = createServiceProvider('default-b@example.test');
@@ -31,9 +49,10 @@ it('creates each manual and automatic task with the current default and records 
     $second = createServiceProvider('initial-b@example.test');
     $property = icalProperty(['responsible_service_provider_id' => $first->id]);
     $create = app(CreateAssignedTask::class);
+    $manualBooking = taskBookingForProperty($property->id, 'default-manual-10');
 
     $manual = $create->execute([
-        'booking_id' => 10,
+        'booking_id' => $manualBooking->id,
         'property_id' => $property->id,
         'type' => 'checkin_inspection',
         'status' => 'pending',
@@ -41,8 +60,9 @@ it('creates each manual and automatic task with the current default and records 
     ], userWithRole('admin')->id);
 
     $property->update(['responsible_service_provider_id' => $second->id]);
+    $automaticBooking = taskBookingForProperty($property->id, 'default-automatic-11');
     $automatic = $create->execute([
-        'booking_id' => 11,
+        'booking_id' => $automaticBooking->id,
         'property_id' => $property->id,
         'type' => 'checkout_cleaning',
         'status' => 'pending',
@@ -68,9 +88,10 @@ it('keeps existing assignment history when the property default changes and a ta
         'status' => 'pending',
         'scheduled_start_at' => now(),
     ];
+    $oldBooking = taskBookingForProperty($property->id, 'history-old-20');
 
     $oldTask = $create->execute($attributes + [
-        'booking_id' => 20,
+        'booking_id' => $oldBooking->id,
         'type' => 'checkin_inspection',
     ], userWithRole('admin')->id);
     $originalHistory = $oldTask->assignmentHistory()->firstOrFail()->only([
@@ -78,8 +99,9 @@ it('keeps existing assignment history when the property default changes and a ta
     ]);
 
     $property->update(['responsible_service_provider_id' => $providerB->id]);
+    $newBooking = taskBookingForProperty($property->id, 'history-new-21');
     $newTask = $create->execute($attributes + [
-        'booking_id' => 21,
+        'booking_id' => $newBooking->id,
         'type' => 'checkout_cleaning',
     ]);
 
@@ -112,12 +134,13 @@ it('keeps existing assignment history when the property default changes and a ta
 it('rolls back task creation when the initial history cannot be stored', function () {
     $provider = createServiceProvider('rollback-default@example.test');
     $property = icalProperty(['responsible_service_provider_id' => $provider->id]);
+    $booking = taskBookingForProperty($property->id, 'history-rollback-12');
 
     DB::statement('DROP TABLE task_assignment_history');
 
     try {
         app(CreateAssignedTask::class)->execute([
-            'booking_id' => 12,
+            'booking_id' => $booking->id,
             'property_id' => $property->id,
             'type' => 'checkout_cleaning',
             'status' => 'pending',
@@ -135,13 +158,14 @@ it('returns no default for absent or inactive provider without choosing another 
 
     if ($inactive) {
         $provider = createServiceProvider('inactive-default@example.test');
-        $provider->user->update(['is_active' => false]);
+        $provider->user->forceFill(['is_active' => false])->save();
         $property->update(['responsible_service_provider_id' => $provider->id]);
     }
 
+    $booking = taskBookingForProperty($property->id, $inactive ? 'no-default-inactive' : 'no-default-absent');
     $providerId = DB::transaction(fn () => app(TaskGenerationValidator::class)->defaultProviderId($property->id));
     $task = app(CreateAssignedTask::class)->execute([
-        'booking_id' => 100,
+        'booking_id' => $booking->id,
         'property_id' => $property->id,
         'type' => 'checkout_cleaning',
         'status' => 'pending',
@@ -164,9 +188,10 @@ it('returns no provider for a nonexistent default reference without selecting a 
     DB::statement('PRAGMA defer_foreign_keys = ON');
     $property->update(['responsible_service_provider_id' => 999999]);
 
+    $booking = taskBookingForProperty($property->id, 'no-default-nonexistent');
     $providerId = DB::transaction(fn () => app(TaskGenerationValidator::class)->defaultProviderId($property->id));
     $task = app(CreateAssignedTask::class)->execute([
-        'booking_id' => 101,
+        'booking_id' => $booking->id,
         'property_id' => $property->id,
         'type' => 'checkout_cleaning',
         'status' => 'pending',

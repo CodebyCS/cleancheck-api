@@ -90,7 +90,7 @@ it('keeps a provider that was already chosen for the task', function () {
 
 it('leaves the task unassigned when the default provider is inactive, without picking another', function () {
     $default = createServiceProvider('inativo@example.test');
-    $default->user->update(['is_active' => false]);
+    $default->user->forceFill(['is_active' => false])->save();
     createServiceProvider('disponivel@example.test');
     $property = defaultProviderProperty($default);
 
@@ -191,7 +191,7 @@ it('flags inactive providers, schedule conflicts and unassigned tasks', function
     $first = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => $busy->id, ...$window]);
     $second = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => $busy->id, ...$window]);
     $inactive = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => $leaving->id]);
-    $leaving->user->update(['is_active' => false]);
+    $leaving->user->forceFill(['is_active' => false])->save();
     $unassigned = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => null]);
     // The property gets an active default after the task was created.
     $property->update(['responsible_service_provider_id' => $busy->id]);
