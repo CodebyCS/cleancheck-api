@@ -135,7 +135,7 @@ Corpo:
 { "booking_id": 12 }
 ```
 
-Resposta `201` com a task criada. Erros `422`: reserva não encontrada, reserva sem propriedade ou sem check-in, prazo já passado, já existe inspeção para a reserva, ou o imóvel não tem um prestador padrão existente e ativo. Neste último caso, `errors.responsible_service_provider_id` explica que é necessário configurar um prestador ativo. `service_provider_id` enviado no pedido é rejeitado; não é possível escolher um prestador alternativo neste endpoint.
+Resposta `201` com a task criada. Erros `422`: reserva não encontrada, reserva sem propriedade ou sem check-in, prazo já passado, já existe inspeção para a reserva, ou o imóvel não existe/está inativo. Se o prestador padrão estiver ausente ou inativo, a task é criada com `service_provider_id: null`, sem entrada no histórico nem aviso ao prestador; a gestão pode encontrá-la em `GET /api/tasks/assignment-warnings`. `service_provider_id` enviado no pedido é rejeitado; não é possível escolher um prestador alternativo neste endpoint.
 
 #### `PATCH /api/tasks/{id}` (admin e supervisor)
 
@@ -240,7 +240,7 @@ A verificação de perfil por rota é feita pelo middleware `role` nas rotas (ve
 - **Autorização por perfil:** as rotas de gestão (`/tasks...`) exigem `admin` ou `supervisor`; as `/my/tasks/*` e os impedimentos exigem `service_provider` (middleware `role`). Um perfil sem permissão recebe `403`.
 - **Formato das respostas:** listagem, detalhe e endpoints de escrita que devolvem uma tarefa usam Resources com envelope `data`. Cancelamento e remoção respondem `204`, sem corpo.
 - `responsible_service_provider_id` define o prestador padrão usado apenas por novas tasks. Alterar esse campo não modifica tasks existentes nem o respetivo histórico. `base_cleaning_amount` ainda não é usado pelas Tasks. `access_instructions` já é devolvido no resource do prestador.
-- Se uma reserva importada não tiver um prestador padrão existente e ativo, a reserva mantém-se guardada, a task de limpeza não é criada e o listener regista um `warning` com `booking_id` e erros. Uma reimportação volta a tentar gerar a task após a correção do prestador padrão.
+- Se uma reserva importada não tiver um prestador padrão existente e ativo, a task de limpeza é criada com `service_provider_id: null`, sem histórico inicial nem aviso ao prestador, e aparece em `GET /api/tasks/assignment-warnings` (`no_default_provider` ou `default_provider_inactive`). A alteração posterior do padrão não reatribui essa task; a gestão deve atribuí-la manualmente.
 - A desativação de uma propriedade já cancela e apaga logicamente as tasks `pending` elegíveis. O bloqueio da desativação de um prestador com tarefas abertas ainda aguarda a integração de `ProviderOpenTasks` pelo módulo Properties.
 - A limpeza da reserva anterior da mesma propriedade **não é recalculada** quando um check-in entra, muda ou sai. O seu `scheduled_end_at` pode ficar desatualizado.
 - Pedidos simultâneos para criar a limpeza da mesma reserva: o índice único protege contra duplicados e o segundo pedido devolve a task já criada.

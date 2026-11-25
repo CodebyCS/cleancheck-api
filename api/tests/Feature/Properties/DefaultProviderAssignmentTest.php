@@ -56,17 +56,26 @@ it('assigns a new checkout cleaning to the default provider of the property', fu
 
     $task = defaultProviderCleaning(defaultProviderProperty($default));
 
-    expect($task->service_provider_id)->toBe($default->id);
+    expect($task->service_provider_id)->toBe($default->id)
+        ->and($task->assignmentHistory()->count())->toBe(1)
+        ->and($task->assignmentHistory()->first()->new_service_provider_id)->toBe($default->id)
+        ->and($task->assignmentHistory()->first()->user_id)->toBeNull();
 });
 
 it('assigns a new inspection created by staff to the default provider', function () {
     $default = createServiceProvider('padrao@example.test');
     $booking = defaultProviderBooking(defaultProviderProperty($default));
-    authenticateApiUser(userWithRole('supervisor'));
+    $actor = userWithRole('supervisor');
+    authenticateApiUser($actor);
 
     $this->postJson('/api/tasks', ['booking_id' => $booking->id])
         ->assertCreated()
         ->assertJsonPath('data.service_provider_id', $default->id);
+
+    $task = Task::query()->where('booking_id', $booking->id)->firstOrFail();
+    $history = $task->assignmentHistory()->sole();
+    expect($history->new_service_provider_id)->toBe($default->id)
+        ->and($history->user_id)->toBe($actor->id);
 });
 
 it('keeps a provider that was already chosen for the task', function () {
@@ -87,7 +96,9 @@ it('leaves the task unassigned when the default provider is inactive, without pi
 
     $task = defaultProviderCleaning($property);
 
-    expect($task->service_provider_id)->toBeNull();
+    expect($task->service_provider_id)->toBeNull()
+        ->and($task->assignmentHistory()->count())->toBe(0);
+    $this->assertDatabaseCount('booking_notices', 0);
 
     authenticateApiUser(userWithRole('admin'));
 
@@ -104,7 +115,9 @@ it('leaves the task unassigned when the property has no default provider', funct
 
     $task = defaultProviderCleaning(defaultProviderProperty(null));
 
-    expect($task->service_provider_id)->toBeNull();
+    expect($task->service_provider_id)->toBeNull()
+        ->and($task->assignmentHistory()->count())->toBe(0);
+    $this->assertDatabaseCount('booking_notices', 0);
 
     authenticateApiUser(userWithRole('admin'));
 
@@ -133,7 +146,7 @@ it('applies a new default provider only to future tasks', function () {
 
     expect($existing->fresh()->service_provider_id)->toBe($first->id)
         ->and($future->service_provider_id)->toBe($second->id)
-        ->and(TaskAssignmentHistory::count())->toBe(0);
+        ->and(TaskAssignmentHistory::count())->toBe(2);
 });
 
 it('lets admin and supervisor change the provider of a task and records it', function (string $role) {
@@ -146,9 +159,12 @@ it('lets admin and supervisor change the provider of a task and records it', fun
         ->assertOk()
         ->assertJsonPath('data.service_provider_id', $other->id);
 
-    $history = TaskAssignmentHistory::where('task_id', $task->id)->sole();
+    $history = TaskAssignmentHistory::where('task_id', $task->id)
+        ->whereNotNull('user_id')
+        ->sole();
 
-    expect($history->previous_service_provider_id)->toBe($default->id)
+    expect(TaskAssignmentHistory::where('task_id', $task->id)->count())->toBe(2)
+        ->and($history->previous_service_provider_id)->toBe($default->id)
         ->and($history->new_service_provider_id)->toBe($other->id)
         ->and($history->user_id)->toBe($user->id);
 })->with(['admin', 'supervisor']);
@@ -162,7 +178,8 @@ it('forbids a service provider from changing the provider of a task', function (
     $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $other->id])->assertForbidden();
 
     expect($task->fresh()->service_provider_id)->toBe($default->id)
-        ->and(TaskAssignmentHistory::count())->toBe(0);
+        ->and(TaskAssignmentHistory::where('task_id', $task->id)->count())->toBe(1)
+        ->and(TaskAssignmentHistory::where('task_id', $task->id)->first()->user_id)->toBeNull();
 });
 
 it('flags inactive providers, schedule conflicts and unassigned tasks', function () {

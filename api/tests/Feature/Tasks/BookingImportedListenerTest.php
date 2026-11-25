@@ -1,10 +1,10 @@
 <?php
 
 use App\Models\Task;
+use App\Models\TaskAssignmentHistory;
 use App\Modules\Reservations\Ical\Channels\AirbnbAdapter;
 use App\Modules\Reservations\Services\BookingImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Log;
 
 uses(RefreshDatabase::class);
 
@@ -30,13 +30,23 @@ it('creates checkout cleaning tasks when bookings are imported', function () {
             ->where('type', 'checkout_cleaning')
             ->count()
     )->toBe(3);
+    $this->assertDatabaseCount('task_assignment_history', 3);
+    $this->assertDatabaseCount('booking_notices', 3);
 
     foreach ($importResult->created as $booking) {
+        $task = Task::query()->where('booking_id', $booking->id)->firstOrFail();
         $this->assertDatabaseHas('tasks', [
             'booking_id' => $booking->id,
             'property_id' => $property->id,
             'type' => 'checkout_cleaning',
             'status' => 'pending',
+            'service_provider_id' => $provider->id,
+        ]);
+        $this->assertDatabaseHas('task_assignment_history', [
+            'task_id' => $task->id,
+            'previous_service_provider_id' => null,
+            'new_service_provider_id' => $provider->id,
+            'user_id' => null,
         ]);
     }
 });
@@ -69,34 +79,33 @@ it('does not duplicate checkout tasks when bookings are reimported', function ()
     $this->assertDatabaseCount('tasks', 3);
 });
 
-it('preserves imported bookings and logs task creation failure until a valid default is configured', function () {
+it('creates imported tasks unassigned when no default exists and exposes them as warnings', function () {
     config(['queue.default' => 'sync']);
-    Log::spy();
     $property = icalProperty();
     $adapter = new AirbnbAdapter();
     $parsed = $adapter->parseFeed(icalFixture('airbnb-valid.ics'), $property->id);
     $result = app(BookingImportService::class)->import($property->id, $adapter->channel(), $parsed);
 
     expect($result->created)->toHaveCount(3)
-        ->and(Task::query()->count())->toBe(0);
+        ->and(Task::query()->count())->toBe(3)
+        ->and(Task::query()->whereNotNull('service_provider_id')->count())->toBe(0)
+        ->and(TaskAssignmentHistory::query()->count())->toBe(0);
     $this->assertDatabaseCount('bookings', 3);
-    Log::shouldHaveReceived('warning')->withArgs(function (string $message, array $context) use ($result): bool {
-        return $message === 'Task de checkout não criada.'
-            && in_array($context['booking_id'] ?? null, array_map(fn ($booking) => $booking->id, $result->created), true)
-            && isset($context['errors']['responsible_service_provider_id']);
-    })->atLeast()->once();
+    $this->assertDatabaseCount('booking_notices', 0);
+
+    authenticateApiUser(userWithRole('admin'));
+    $unassigned = collect($this->getJson('/api/tasks/assignment-warnings')->assertOk()->json('data'));
+    expect($unassigned)->toHaveCount(3)
+        ->and($unassigned->pluck('warnings.0.code')->unique()->all())->toBe(['no_default_provider']);
 
     $provider = createServiceProvider('fixed-import-default@example.test');
     $property->update(['responsible_service_provider_id' => $provider->id]);
     app(BookingImportService::class)->import($property->id, $adapter->channel(), $parsed);
 
-    expect(Task::query()->count())->toBe(3);
+    expect(Task::query()->count())->toBe(3)
+        ->and(Task::query()->whereNotNull('service_provider_id')->count())->toBe(0)
+        ->and(TaskAssignmentHistory::query()->count())->toBe(0);
     foreach (Task::query()->get() as $task) {
-        $this->assertDatabaseHas('task_assignment_history', [
-            'task_id' => $task->id,
-            'previous_service_provider_id' => null,
-            'new_service_provider_id' => $provider->id,
-            'user_id' => null,
-        ]);
+        expect($task->service_provider_id)->toBeNull();
     }
 });

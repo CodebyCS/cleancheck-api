@@ -77,7 +77,7 @@ class TaskGenerationValidator
     }
 
     /** Resolve the current default inside the task creation transaction. */
-    public function defaultProviderId(int $propertyId): int
+    public function defaultProviderId(int $propertyId): ?int
     {
         $property = Property::whereKey($propertyId)->lockForUpdate()->first();
 
@@ -95,12 +95,6 @@ class TaskGenerationValidator
             ->lockForUpdate()
             ->exists();
 
-        if (! $activeProvider) {
-            throw ValidationException::withMessages([
-                'responsible_service_provider_id' => 'Configure um prestador padrão existente e ativo no imóvel antes de criar a tarefa.',
-            ]);
-        }
-
-        return (int) $providerId;
+        return $activeProvider ? (int) $providerId : null;
     }
 }

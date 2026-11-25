@@ -16,6 +16,7 @@ return new class extends Migration
 
     public function down(): void
     {
+        // Keep system-authored history intact; rollback is intentionally blocked once it exists.
         if (DB::table('task_assignment_history')->whereNull('user_id')->exists()) {
             throw new RuntimeException('Não é possível remover autores de sistema sem perder o histórico de atribuições.');
         }

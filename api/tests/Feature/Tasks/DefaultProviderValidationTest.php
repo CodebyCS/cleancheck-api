@@ -2,11 +2,11 @@
 
 use App\Modules\Tasks\Validators\TaskGenerationValidator;
 use App\Modules\Tasks\Actions\CreateAssignedTask;
+use App\Models\Task;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use App\Modules\Reservations\Models\Booking;
 use App\Modules\Reservations\Models\BookingSource;
-use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
@@ -129,7 +129,7 @@ it('rolls back task creation when the initial history cannot be stored', functio
     }
 });
 
-it('rejects an absent or inactive default instead of choosing another active provider', function (bool $inactive) {
+it('returns no default for absent or inactive provider without choosing another active provider', function (bool $inactive) {
     createServiceProvider('alternative@example.test');
     $property = icalProperty();
 
@@ -139,18 +139,24 @@ it('rejects an absent or inactive default instead of choosing another active pro
         $property->update(['responsible_service_provider_id' => $provider->id]);
     }
 
-    try {
-        DB::transaction(fn () => app(TaskGenerationValidator::class)->defaultProviderId($property->id));
-        $this->fail('Expected a field validation error for the property default.');
-    } catch (ValidationException $exception) {
-        expect($exception->errors())->toHaveKey('responsible_service_provider_id');
-    }
+    $providerId = DB::transaction(fn () => app(TaskGenerationValidator::class)->defaultProviderId($property->id));
+    $task = app(CreateAssignedTask::class)->execute([
+        'booking_id' => 100,
+        'property_id' => $property->id,
+        'type' => 'checkout_cleaning',
+        'status' => 'pending',
+        'scheduled_start_at' => now(),
+    ]);
 
-    $this->assertDatabaseCount('tasks', 0);
+    expect($providerId)->toBeNull()
+        ->and($task->service_provider_id)->toBeNull()
+        ->and($task->assignmentHistory()->count())->toBe(0);
+
+    $this->assertDatabaseCount('tasks', 1);
     $this->assertDatabaseCount('task_assignment_history', 0);
 })->with(['absent' => false, 'inactive' => true]);
 
-it('rejects a nonexistent default reference without selecting a replacement', function () {
+it('returns no provider for a nonexistent default reference without selecting a replacement', function () {
     createServiceProvider('alternative@example.test');
     $property = icalProperty();
 
@@ -158,15 +164,21 @@ it('rejects a nonexistent default reference without selecting a replacement', fu
     DB::statement('PRAGMA defer_foreign_keys = ON');
     $property->update(['responsible_service_provider_id' => 999999]);
 
-    try {
-        DB::transaction(fn () => app(TaskGenerationValidator::class)->defaultProviderId($property->id));
-        $this->fail('Expected a field validation error for the nonexistent default.');
-    } catch (ValidationException $exception) {
-        expect($exception->errors())->toHaveKey('responsible_service_provider_id');
-    }
+    $providerId = DB::transaction(fn () => app(TaskGenerationValidator::class)->defaultProviderId($property->id));
+    $task = app(CreateAssignedTask::class)->execute([
+        'booking_id' => 101,
+        'property_id' => $property->id,
+        'type' => 'checkout_cleaning',
+        'status' => 'pending',
+        'scheduled_start_at' => now(),
+    ]);
 
     $property->update(['responsible_service_provider_id' => null]);
-    $this->assertDatabaseCount('tasks', 0);
+    expect($providerId)->toBeNull()
+        ->and($task->service_provider_id)->toBeNull()
+        ->and($task->assignmentHistory()->count())->toBe(0);
+
+    $this->assertDatabaseCount('tasks', 1);
     $this->assertDatabaseCount('task_assignment_history', 0);
 });
 
@@ -183,7 +195,7 @@ it('refuses a caller supplied provider when creating a task', function (string $
     $this->assertDatabaseCount('task_assignment_history', 0);
 })->with(['admin', 'supervisor']);
 
-it('returns a field validation error and persists no task when manual creation has no valid default', function () {
+it('creates a manual task unassigned when no default provider is configured', function () {
     createServiceProvider('manual-no-fallback@example.test');
     $property = icalProperty();
     $source = BookingSource::create([
@@ -202,9 +214,18 @@ it('returns a field validation error and persists no task when manual creation h
 
     authenticateApiUser(userWithRole('admin'));
     $this->postJson('/api/tasks', ['booking_id' => $booking->id])
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors('responsible_service_provider_id');
+        ->assertCreated()
+        ->assertJsonPath('data.service_provider_id', null);
 
-    $this->assertDatabaseCount('tasks', 0);
+    $task = Task::query()->where('booking_id', $booking->id)->firstOrFail();
+    expect($task->service_provider_id)->toBeNull()
+        ->and($task->assignmentHistory()->count())->toBe(0);
+
+    $this->getJson('/api/tasks/assignment-warnings')
+        ->assertOk()
+        ->assertJsonPath('data.0.task_id', $task->id)
+        ->assertJsonPath('data.0.warnings.0.code', 'no_default_provider');
+
+    $this->assertDatabaseCount('tasks', 1);
     $this->assertDatabaseCount('task_assignment_history', 0);
 });

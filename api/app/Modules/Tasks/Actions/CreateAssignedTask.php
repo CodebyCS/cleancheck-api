@@ -19,14 +19,17 @@ class CreateAssignedTask
             $attributes['service_provider_id'] = $providerId;
 
             $task = Task::create($attributes);
-            $history = $task->assignmentHistory()->create([
-                'previous_service_provider_id' => null,
-                'new_service_provider_id' => $providerId,
-                'user_id' => $userId,
-                'created_at' => now(),
-            ]);
 
-            TaskAssigned::dispatch($task->id, null, $providerId, $history->id);
+            if ($providerId !== null) {
+                $history = $task->assignmentHistory()->create([
+                    'previous_service_provider_id' => null,
+                    'new_service_provider_id' => $providerId,
+                    'user_id' => $userId,
+                    'created_at' => now(),
+                ]);
+
+                TaskAssigned::dispatch($task->id, null, $providerId, $history->id);
+            }
 
             return $task;
         });
