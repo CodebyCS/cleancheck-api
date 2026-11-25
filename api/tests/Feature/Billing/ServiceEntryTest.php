@@ -240,6 +240,44 @@ it('lists entries for review with totals per currency and missing tasks', functi
         ->assertJsonValidationErrors(['month' => 'O mês deve estar no formato AAAA-MM.']);
 });
 
+it('uses the property timezone for the month of entries and of tasks without entry', function () {
+    // 1 December 01:00/02:00 UTC is still 30 November in São Paulo (UTC-3).
+    $saoPaulo = billingProperty(['name' => 'Casa SP', 'timezone' => 'America/Sao_Paulo', 'base_cleaning_amount' => 30]);
+    $lisbon = billingProperty(['name' => 'Casa Lisboa', 'base_cleaning_amount' => 30]);
+    $provider = createServiceProvider('fuso@example.test');
+    authenticateApiUser(userWithRole('admin'));
+
+    $withEntry = billingTask($saoPaulo, $provider, [
+        'scheduled_start_at' => '2026-12-01 02:00:00',
+        'scheduled_end_at' => '2026-12-01 05:00:00',
+    ]);
+    completeAsStaff($withEntry)->assertOk();
+
+    // Completed without passing through the completion: no entry yet.
+    $missingSaoPaulo = billingTask($saoPaulo, $provider, [
+        'status' => 'completed',
+        'scheduled_start_at' => '2026-12-01 01:00:00',
+        'scheduled_end_at' => '2026-12-01 04:00:00',
+    ]);
+    $missingLisbon = billingTask($lisbon, $provider, [
+        'status' => 'completed',
+        'scheduled_start_at' => '2026-12-01 00:30:00',
+        'scheduled_end_at' => '2026-12-01 03:00:00',
+    ]);
+
+    $this->getJson('/api/service-entries?month=2026-11')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.task_id', $withEntry->id)
+        ->assertJsonPath('data.0.service_date', '2026-11-30')
+        ->assertJsonPath('meta.tasks_without_entry', [$missingSaoPaulo->id]);
+
+    $this->getJson('/api/service-entries?month=2026-12')
+        ->assertOk()
+        ->assertJsonCount(0, 'data')
+        ->assertJsonPath('meta.tasks_without_entry', [$missingLisbon->id]);
+});
+
 it('forbids service providers from the review and the retry', function () {
     $provider = createServiceProvider('proibido@example.test');
     $task = billingTask(billingProperty(), $provider, ['status' => 'completed']);

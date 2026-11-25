@@ -8,6 +8,7 @@ use App\Modules\Billing\Http\Requests\ListServiceEntriesRequest;
 use App\Modules\Billing\Http\Resources\ServiceEntryResource;
 use App\Modules\Billing\Models\ServiceEntry;
 use App\Modules\Billing\Services\RecordServiceEntry;
+use App\Modules\Properties\Models\Property;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -79,7 +80,9 @@ class ServiceEntryController extends Controller
             ->when(isset($filters['month']), function (Builder $query) use ($filters) {
                 $start = Carbon::createFromFormat('Y-m-d', $filters['month'].'-01')->startOfDay();
 
-                $query->whereBetween('service_date', [$start->toDateString(), $start->copy()->endOfMonth()->toDateString()]);
+                // Half-open range: service_date may be stored with a time part (e.g. SQLite).
+                $query->where('service_date', '>=', $start->toDateString())
+                    ->where('service_date', '<', $start->copy()->addMonth()->toDateString());
             })
             ->when(isset($filters['service_provider_id']), fn (Builder $query) => $query->where('service_provider_id', $filters['service_provider_id']))
             ->when(isset($filters['property_id']), fn (Builder $query) => $query->where('property_id', $filters['property_id']));
@@ -87,31 +90,47 @@ class ServiceEntryController extends Controller
 
     /**
      * Completed tasks with a provider and no entry, so the review shows what is missing.
-     * The month filter uses the scheduled start in UTC, which can differ by one day at the edges.
+     * The month uses the scheduled start in the property's timezone, like the entries' service_date.
      *
      * @param  array<string, mixed>  $filters
      * @return list<int>
      */
     private function tasksWithoutEntry(array $filters): array
     {
-        return Task::query()
+        $query = Task::query()
             ->where('status', 'completed')
             ->whereNotNull('service_provider_id')
             ->whereNotExists(fn ($query) => $query
                 ->selectRaw('1')
                 ->from('service_entries')
                 ->whereColumn('service_entries.task_id', 'tasks.id'))
-            ->when(isset($filters['month']), function ($query) use ($filters) {
-                $start = Carbon::createFromFormat('Y-m-d', $filters['month'].'-01', 'UTC')->startOfDay();
-
-                $query->where('scheduled_start_at', '>=', $start)
-                    ->where('scheduled_start_at', '<', $start->copy()->addMonth());
-            })
             ->when(isset($filters['service_provider_id']), fn ($query) => $query->where('service_provider_id', $filters['service_provider_id']))
             ->when(isset($filters['property_id']), fn ($query) => $query->where('property_id', $filters['property_id']))
-            ->orderBy('id')
-            ->limit(100)
+            ->orderBy('id');
+
+        if (! isset($filters['month'])) {
+            return $query->limit(100)->pluck('id')->all();
+        }
+
+        // Widen the UTC range by one day on each side (offsets go from -12h to +14h),
+        // then keep only the tasks whose local date falls in the month.
+        $monthStart = Carbon::createFromFormat('Y-m-d', $filters['month'].'-01', 'UTC')->startOfDay();
+        $tasks = $query
+            ->where('scheduled_start_at', '>=', $monthStart->copy()->subDay())
+            ->where('scheduled_start_at', '<', $monthStart->copy()->addMonth()->addDay())
+            ->get(['id', 'property_id', 'scheduled_start_at']);
+
+        $timezones = Property::query()
+            ->whereIn('id', $tasks->pluck('property_id')->unique())
+            ->pluck('timezone', 'id');
+
+        return $tasks
+            ->filter(fn (Task $task) => $task->scheduled_start_at !== null && $task->scheduled_start_at->copy()
+                ->setTimezone($timezones->get($task->property_id) ?: Property::DEFAULT_TIMEZONE)
+                ->format('Y-m') === $filters['month'])
+            ->take(100)
             ->pluck('id')
+            ->values()
             ->all();
     }
 }

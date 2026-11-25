@@ -116,5 +116,5 @@ Um serviço é elegível quando a tarefa está concluída (`completed`), não fo
 ```
 
 - `meta.totals` soma os lançamentos filtrados, por moeda. Moedas diferentes nunca são somadas entre si.
-- `meta.tasks_without_entry` lista até 100 tarefas concluídas, com prestador e sem lançamento, com os mesmos filtros. O mês, neste caso, usa o início agendado em UTC e pode diferir um dia nos extremos do mês.
+- `meta.tasks_without_entry` lista até 100 tarefas concluídas, com prestador e sem lançamento, com os mesmos filtros. O mês usa o início agendado no fuso do imóvel, tal como a `service_date` dos lançamentos.
 - Os lançamentos são ordenados por data do serviço, do mais recente para o mais antigo.
