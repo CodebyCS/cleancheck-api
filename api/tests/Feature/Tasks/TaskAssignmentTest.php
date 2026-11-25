@@ -69,7 +69,8 @@ it('allows an administrator or supervisor to assign an active provider to a pend
     ]);
 
     $response->assertOk()
-        ->assertJsonPath('data.service_provider_id', $provider->id);
+        ->assertJsonPath('data.service_provider_id', $provider->id)
+        ->assertJsonPath('data.service_provider', $provider->user->name);
 
     expect($task->fresh()->serviceProvider->id)->toBe($provider->id)
         ->and($task->fresh()->property->id)->toBe($task->property_id);
@@ -90,7 +91,8 @@ it('rejects assignment by a provider or an unauthenticated user', function () {
         ])
         ->assertForbidden();
 
-    expect($task->fresh()->service_provider_id)->toBeNull();
+    expect($task->fresh()->service_provider_id)->toBeNull()
+        ->and($task->assignmentHistory()->count())->toBe(0);
 });
 
 it('rejects nonexistent or inactive providers without editing other fields', function () {
@@ -108,7 +110,8 @@ it('rejects nonexistent or inactive providers without editing other fields', fun
             ->assertJsonValidationErrors('service_provider_id');
 
         expect($task->fresh()->service_provider_id)->toBeNull()
-            ->and($task->fresh()->notes)->toBeNull();
+            ->and($task->fresh()->notes)->toBeNull()
+            ->and($task->assignmentHistory()->count())->toBe(0);
     }
 });
 

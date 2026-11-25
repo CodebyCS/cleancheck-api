@@ -139,6 +139,10 @@ Corpo:
 
 Resposta `201` com a task criada. Erros `422`: reserva não encontrada, reserva sem propriedade ou sem check-in, prazo já passado, já existe inspeção para a reserva, ou o imóvel não existe/está inativo. Se o prestador padrão estiver ausente ou inativo, a task é criada com `service_provider_id: null`, sem entrada no histórico nem aviso ao prestador; a gestão pode encontrá-la em `GET /api/tasks/assignment-warnings`. `service_provider_id` enviado no pedido é rejeitado; não é possível escolher um prestador alternativo neste endpoint.
 
+#### `GET /api/service-providers?active=1` (admin e supervisor)
+
+Devolve em `data` uma lista não paginada apenas com prestadores ativos, ordenada pelo nome. Cada elemento contém `id`, `user_id`, `name`, `email`, `phone`, `address`, `postal_code`, `city`, `photo_url` e `is_active`. A resposta usa o resource de prestador; `photo_url` pode ser `null`. Sem `active=1`, a listagem inclui ativos e inativos. Utilizadores não autenticados recebem `401`; perfis sem permissão recebem `403`.
+
 #### `PATCH /api/tasks/{id}` (admin e supervisor)
 
 Edita os campos permitidos. Todos opcionais:
@@ -164,7 +168,7 @@ Content-Type: application/json
 { "service_provider_id": 7 }
 ```
 
-A resposta `200` devolve a task atualizada, incluindo `id` e `service_provider_id`. As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
+A resposta `200` devolve em `data` a task atualizada no resource de gestão, incluindo `id`, `service_provider_id` e `service_provider` (nome do prestador efetivamente atribuído). As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
 
 Cada alteração efetiva cria uma entrada em `task_assignment_history` com `task_id`, `previous_service_provider_id` (`null` na primeira atribuição), `new_service_provider_id`, `user_id` do autor e `created_at`. A atualização da task e a criação da entrada ocorrem na mesma transação. Na criação manual, `user_id` identifica o utilizador autenticado; na criação automática, `user_id: null` identifica o sistema. As atribuições existentes antes desta funcionalidade não têm histórico retroativo. A eliminação física de tarefas ou prestadores referenciados pelo histórico é restringida; a eliminação normal de tasks continua lógica.
 
