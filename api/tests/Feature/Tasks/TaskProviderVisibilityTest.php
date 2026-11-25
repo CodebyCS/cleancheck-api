@@ -88,6 +88,24 @@ it('shows the assigned provider and the agreed amount to staff', function () {
         ->assertJsonPath('data.0.agreed_amount', '45.50');
 });
 
+it('shows the current provider in staff task details and null when unassigned', function () {
+    $provider = createServiceProvider('visibility-detail-provider@example.test');
+    $assignedTask = makeVisibilityTask($provider->id);
+    $unassignedTask = makeVisibilityTask(null);
+
+    authenticateApiUser(userWithRole('admin'));
+
+    $this->getJson("/api/tasks/{$assignedTask->id}")
+        ->assertOk()
+        ->assertJsonPath('data.service_provider_id', $provider->id)
+        ->assertJsonPath('data.service_provider', $provider->user->name);
+
+    $this->getJson("/api/tasks/{$unassignedTask->id}")
+        ->assertOk()
+        ->assertJsonPath('data.service_provider_id', null)
+        ->assertJsonPath('data.service_provider', null);
+});
+
 it('rejects the deleted filter on the provider list', function () {
     $provider = createServiceProvider('visibility-filter@example.test');
 
