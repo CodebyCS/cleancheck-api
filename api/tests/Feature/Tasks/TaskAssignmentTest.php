@@ -75,6 +75,54 @@ it('allows an administrator or supervisor to assign an active provider to a pend
         ->and($task->fresh()->property->id)->toBe($task->property_id);
 })->with(['admin', 'supervisor']);
 
+it('returns a schedule conflict indicator after assignment without changing the requested provider', function () {
+    $provider = assignmentProvider();
+    $task = assignmentTask();
+    $conflictingTask = assignmentTask('pending', $provider->id);
+    $start = '2030-01-07 11:30:00';
+    $end = '2030-01-07 14:30:00';
+    $task->update(['scheduled_start_at' => $start, 'scheduled_end_at' => $end]);
+    $conflictingTask->update(['scheduled_start_at' => $start, 'scheduled_end_at' => $end]);
+
+    authenticateApiUser(userWithRole('admin'));
+
+    $this->patchJson("/api/tasks/{$task->id}", [
+        'service_provider_id' => $provider->id,
+    ])->assertOk()
+        ->assertJsonPath('data.service_provider_id', $provider->id)
+        ->assertJsonPath('assignment_warnings.0.code', 'schedule_conflict')
+        ->assertJsonPath('assignment_warnings.0.conflicting_task_ids.0', $conflictingTask->id);
+
+    expect($task->fresh()->service_provider_id)->toBe($provider->id)
+        ->and($conflictingTask->fresh()->service_provider_id)->toBe($provider->id)
+        ->and($task->assignmentHistory()->sole()->new_service_provider_id)->toBe($provider->id);
+});
+
+it('returns an empty assignment warnings array after a conflict-free assignment', function () {
+    $provider = assignmentProvider();
+    $task = assignmentTask();
+    $otherTask = assignmentTask('pending', $provider->id);
+    $task->update([
+        'scheduled_start_at' => '2030-01-07 09:00:00',
+        'scheduled_end_at' => '2030-01-07 10:00:00',
+    ]);
+    $otherTask->update([
+        'scheduled_start_at' => '2030-01-07 10:00:00',
+        'scheduled_end_at' => '2030-01-07 11:00:00',
+    ]);
+
+    authenticateApiUser(userWithRole('supervisor'));
+
+    $this->patchJson("/api/tasks/{$task->id}", [
+        'service_provider_id' => $provider->id,
+    ])->assertOk()
+        ->assertJsonPath('data.service_provider_id', $provider->id)
+        ->assertJsonPath('assignment_warnings', []);
+
+    expect($task->fresh()->service_provider_id)->toBe($provider->id)
+        ->and($otherTask->fresh()->service_provider_id)->toBe($provider->id);
+});
+
 it('rejects assignment by a provider or an unauthenticated user', function () {
     $provider = assignmentProvider();
     $task = assignmentTask();

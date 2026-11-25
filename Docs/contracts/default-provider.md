@@ -37,6 +37,8 @@ Continua a ser feita em `PATCH /api/tasks/{id}` com `service_provider_id`, apena
 
 `GET /api/tasks/assignment-warnings`, apenas `admin` e `supervisor`. Filtro opcional `?property_id=`.
 
+O indicador `schedule_conflict` é devolvido nesta listagem, dentro de `data[].warnings[]`, e inclui `conflicting_task_ids`. Após atribuir ou reatribuir uma tarefa, `PATCH /api/tasks/{id}` também devolve os conflitos dessa tarefa no array de nível superior `assignment_warnings`; sem conflito, devolve `[]`. O PATCH mantém o prestador pedido e nunca escolhe outro automaticamente. Os dois contratos têm âmbitos diferentes: um descreve a lista de avisos da gestão e o outro o resultado da alteração individual.
+
 Lista as tarefas abertas (`pending` ou `in_progress`, não eliminadas) que precisam de atenção, ordenadas pelo início agendado. Os avisos são calculados em cada pedido e desaparecem quando a causa é resolvida. O endpoint não atribui nem troca prestadores.
 
 | Código | Quando |

@@ -81,7 +81,7 @@ it('keeps a provider that was already chosen for the task', function () {
 
 it('leaves the task unassigned when the default provider is inactive, without picking another', function () {
     $default = createServiceProvider('inativo@example.test');
-    $default->user->update(['is_active' => false]);
+    $default->user->forceFill(['is_active' => false])->save();
     createServiceProvider('disponivel@example.test');
     $property = defaultProviderProperty($default);
 
@@ -192,7 +192,7 @@ it('flags inactive providers, schedule conflicts and unassigned tasks', function
     $first = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => $busy->id, ...$window]);
     $second = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => $busy->id, ...$window]);
     $inactive = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => $leaving->id]);
-    $leaving->user->update(['is_active' => false]);
+    $leaving->user->forceFill(['is_active' => false])->save();
     $unassigned = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => null]);
     // The property gets an active default after the task was created.
     $property->update(['responsible_service_provider_id' => $busy->id]);
@@ -200,6 +200,7 @@ it('flags inactive providers, schedule conflicts and unassigned tasks', function
 
     authenticateApiUser(userWithRole('admin'));
 
+    $historyCountBefore = TaskAssignmentHistory::count();
     $warnings = collect($this->getJson("/api/tasks/assignment-warnings?property_id={$property->id}")
         ->assertOk()
         ->json('data'))
@@ -210,6 +211,53 @@ it('flags inactive providers, schedule conflicts and unassigned tasks', function
         ->and($warnings[$second->id]['warnings'][0]['conflicting_task_ids'])->toBe([$first->id])
         ->and($warnings[$inactive->id]['warnings'][0]['code'])->toBe('provider_inactive')
         ->and($warnings[$unassigned->id]['warnings'][0]['code'])->toBe('unassigned');
+
+    expect($first->fresh()->service_provider_id)->toBe($busy->id)
+        ->and($second->fresh()->service_provider_id)->toBe($busy->id)
+        ->and($inactive->fresh()->service_provider_id)->toBe($leaving->id)
+        ->and($unassigned->fresh()->service_provider_id)->toBeNull()
+        ->and($first->fresh()->status)->toBe('pending')
+        ->and($second->fresh()->status)->toBe('pending');
+    $this->assertSame($historyCountBefore, TaskAssignmentHistory::count());
+});
+
+it('does not report a schedule conflict when tasks for the same provider do not overlap', function () {
+    $provider = createServiceProvider('sem-conflito@example.test');
+    $property = defaultProviderProperty(null);
+    $first = Task::factory()->create([
+        'property_id' => $property->id,
+        'service_provider_id' => $provider->id,
+        'scheduled_start_at' => '2030-01-07 09:00:00',
+        'scheduled_end_at' => '2030-01-07 10:00:00',
+    ]);
+    $second = Task::factory()->create([
+        'property_id' => $property->id,
+        'service_provider_id' => $provider->id,
+        'scheduled_start_at' => '2030-01-07 10:00:00',
+        'scheduled_end_at' => '2030-01-07 11:00:00',
+    ]);
+    $historyCountBefore = TaskAssignmentHistory::count();
+    authenticateApiUser(userWithRole('admin'));
+
+    $response = $this->getJson("/api/tasks/assignment-warnings?property_id={$property->id}")
+        ->assertOk();
+
+    expect(collect($response->json('data'))->pluck('task_id')->all())->toBeEmpty()
+        ->and($first->fresh()->service_provider_id)->toBe($provider->id)
+        ->and($second->fresh()->service_provider_id)->toBe($provider->id);
+    $this->assertSame($historyCountBefore, TaskAssignmentHistory::count());
+});
+
+it('allows admins and supervisors to list assignment warnings', function (string $role) {
+    authenticateApiUser(userWithRole($role));
+
+    $this->getJson('/api/tasks/assignment-warnings')
+        ->assertOk()
+        ->assertExactJson(['data' => []]);
+})->with(['admin', 'supervisor']);
+
+it('requires authentication to list assignment warnings', function () {
+    $this->getJson('/api/tasks/assignment-warnings')->assertUnauthorized();
 });
 
 it('forbids service providers from listing assignment warnings', function () {
