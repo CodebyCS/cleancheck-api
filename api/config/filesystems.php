@@ -37,6 +37,13 @@ return [
             'throw' => false,
             'report' => false,
         ],
+        
+        'task_evidence' => [
+            'driver' => 'local',
+            'root' => env('TASK_EVIDENCE_PATH', storage_path('app/private/task-evidences')),
+            'visibility' => 'private',
+            'throw' => true,
+        ],
 
         'public' => [
             'driver' => 'local',
