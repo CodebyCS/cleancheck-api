@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Billing\Http\Controllers\RateController;
+use App\Modules\Billing\Http\Controllers\ServiceEntryController;
 use App\Modules\Evidence\Http\Controllers\EvidenceTrialController;
 use App\Modules\Properties\Http\Controllers\ProfileController;
 use App\Modules\Properties\Http\Controllers\PropertyController;
@@ -102,6 +104,12 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
             ->whereNumber('property');
         Route::patch('/bookings/{booking}/schedule', [BookingController::class, 'updateSchedule'])
             ->whereNumber('booking');
+
+        // Billing: rates (append-only) and service entries review
+        Route::get('/rates', [RateController::class, 'index']);
+        Route::post('/rates', [RateController::class, 'store']);
+        Route::get('/service-entries', [ServiceEntryController::class, 'index']);
+        Route::post('/tasks/{task}/service-entry', [ServiceEntryController::class, 'storeForTask'])->whereNumber('task');
     });
 
     Route::middleware('role:service_provider')->group(function (): void {
