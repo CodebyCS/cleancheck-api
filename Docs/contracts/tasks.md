@@ -164,7 +164,21 @@ Content-Type: application/json
 { "service_provider_id": 7 }
 ```
 
-A resposta `200` devolve a task atualizada, incluindo `id` e `service_provider_id`. As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
+A resposta `200` devolve a task atualizada em `data`, incluindo `id` e `service_provider_id`, e um array de nível superior `assignment_warnings`. Se a atribuição deixar a tarefa em conflito com outra tarefa aberta do mesmo prestador, o array contém `schedule_conflict` e os `conflicting_task_ids`; se não houver conflito, devolve `[]`. Este indicador é informativo: a API mantém o prestador enviado no pedido e nunca escolhe outro automaticamente. A lista global de avisos continua disponível em `GET /api/tasks/assignment-warnings`. As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
+
+Exemplo de resposta com conflito:
+
+```json
+{
+  "data": {
+    "id": 42,
+    "service_provider_id": 7
+  },
+  "assignment_warnings": [
+    { "code": "schedule_conflict", "conflicting_task_ids": [43] }
+  ]
+}
+```
 
 Cada alteração efetiva cria uma entrada em `task_assignment_history` com `task_id`, `previous_service_provider_id` (`null` na primeira atribuição), `new_service_provider_id`, `user_id` do autor e `created_at`. A atualização da task e a criação da entrada ocorrem na mesma transação. Na criação manual, `user_id` identifica o utilizador autenticado; na criação automática, `user_id: null` identifica o sistema. As atribuições existentes antes desta funcionalidade não têm histórico retroativo. A eliminação física de tarefas ou prestadores referenciados pelo histórico é restringida; a eliminação normal de tasks continua lógica.
 

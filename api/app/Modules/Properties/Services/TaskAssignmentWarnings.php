@@ -97,6 +97,18 @@ class TaskAssignmentWarnings
             ->all();
     }
 
+    /** @return list<array{code: string, conflicting_task_ids: list<int>}> */
+    public function scheduleConflictsForTask(Task $task): array
+    {
+        $taskWarning = collect($this->list((int) $task->property_id))
+            ->firstWhere('task_id', $task->id);
+
+        return collect($taskWarning['warnings'] ?? [])
+            ->filter(fn (array $warning) => $warning['code'] === self::SCHEDULE_CONFLICT)
+            ->values()
+            ->all();
+    }
+
     /**
      * Open tasks of the same provider whose windows overlap, keyed by task id.
      *
