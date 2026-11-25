@@ -8,7 +8,7 @@ use App\Modules\Properties\Models\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Exposes the property's default provider to task creation without changing the Tasks module.
+ * Applies the property's active default to tasks created outside the common task service.
  *
  * A new task without a provider gets the default provider of its property, if that provider
  * is active. Otherwise the task stays unassigned and shows up in the assignment warnings;

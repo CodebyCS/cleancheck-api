@@ -19,11 +19,13 @@ afterEach(fn () => Carbon::setTestNow());
 
 function rescheduleProperty(): Property
 {
+    $provider = createServiceProvider('reschedule-default@example.test');
     return Property::create([
         'name' => 'Casa do Reagendamento',
         'address' => 'Rua Fictícia 11',
         'postal_code' => '1200-011',
         'city' => 'Lisboa',
+        'responsible_service_provider_id' => $provider->id,
     ]);
 }
 
@@ -156,7 +158,6 @@ it('ignores bookings that do not exist or are no longer reserved', function () {
 
     expect($task->fresh()->scheduled_start_at->format('Y-m-d H:i'))->toBe('2026-11-20 11:30');
 });
-
 it('keeps the assigned provider and the agreed amount when the booking is rescheduled', function () {
     $provider = createServiceProvider('reschedule-provider@example.test');
     $booking = rescheduleBooking(rescheduleProperty(), 'assigned', '2026-11-16 15:00:00', '2026-11-20 11:00:00');

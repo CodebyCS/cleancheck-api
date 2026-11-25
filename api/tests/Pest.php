@@ -68,14 +68,14 @@ function userWithRole(string $role): User
     ]);
 }
 
-function icalProperty(): Property
+function icalProperty(array $attributes = []): Property
 {
-    return Property::create([
+    return Property::create(array_merge([
         'name' => 'Casa Teste iCal',
         'address' => 'Rua de Teste, 1',
         'postal_code' => '1000-001',
         'city' => 'Lisboa',
-    ]);
+    ], $attributes));
 }
 
 /** @param array<string, list<string>> $records host => IPs */

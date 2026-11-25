@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Task;
 use App\Models\TaskCancellationHistory;
 use App\Modules\Properties\Models\Property;
+use App\Modules\Properties\Models\ServiceProvider;
 use App\Modules\Reservations\Events\BookingCancelled;
 use App\Modules\Reservations\Events\BookingUpdated;
 use App\Modules\Reservations\Models\Booking;
@@ -20,11 +21,13 @@ afterEach(fn () => Carbon::setTestNow());
 
 function listenerBooking(): Booking
 {
+    $provider = createServiceProvider('listener-default@example.test');
     $property = Property::create([
         'name' => 'Casa dos Eventos',
         'address' => 'Rua Fictícia 12',
         'postal_code' => '1200-012',
         'city' => 'Lisboa',
+        'responsible_service_provider_id' => $provider->id,
     ]);
 
     $source = BookingSource::create([
