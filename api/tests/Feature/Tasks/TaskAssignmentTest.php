@@ -76,6 +76,54 @@ it('allows an administrator or supervisor to assign an active provider to a pend
         ->and($task->fresh()->property->id)->toBe($task->property_id);
 })->with(['admin', 'supervisor']);
 
+it('reflects a reassignment in staff task reads and leaves unrelated tasks unchanged', function () {
+    $firstProvider = assignmentProvider();
+    $currentProvider = assignmentProvider();
+    $unrelatedProvider = assignmentProvider();
+    $task = assignmentTask();
+    $unrelatedTask = assignmentTask('pending', $unrelatedProvider->id);
+    $unrelatedUpdatedAt = $unrelatedTask->updated_at;
+    $actor = userWithRole('admin');
+
+    authenticateApiUser($actor);
+
+    $this->patchJson("/api/tasks/{$task->id}", [
+        'service_provider_id' => $firstProvider->id,
+    ])->assertOk();
+
+    $this->patchJson("/api/tasks/{$task->id}", [
+        'service_provider_id' => $currentProvider->id,
+    ])->assertOk()
+        ->assertJsonPath('data.id', $task->id)
+        ->assertJsonPath('data.service_provider_id', $currentProvider->id)
+        ->assertJsonPath('data.service_provider', $currentProvider->user->name);
+
+    $listResponse = $this->getJson('/api/tasks')->assertOk();
+    $listedTask = collect($listResponse->json('data'))->firstWhere('id', $task->id);
+
+    expect($listedTask['service_provider_id'])->toBe($currentProvider->id)
+        ->and($listedTask['service_provider'])->toBe($currentProvider->user->name);
+
+    $this->getJson("/api/tasks/{$task->id}")
+        ->assertOk()
+        ->assertJsonPath('data.id', $task->id)
+        ->assertJsonPath('data.service_provider_id', $currentProvider->id)
+        ->assertJsonPath('data.service_provider', $currentProvider->user->name);
+
+    $history = $task->assignmentHistory()->orderBy('id')->get();
+
+    expect($history)->toHaveCount(2)
+        ->and($history[0]->previous_service_provider_id)->toBeNull()
+        ->and($history[0]->new_service_provider_id)->toBe($firstProvider->id)
+        ->and($history[1]->previous_service_provider_id)->toBe($firstProvider->id)
+        ->and($history[1]->new_service_provider_id)->toBe($currentProvider->id)
+        ->and($history[1]->user_id)->toBe($actor->id)
+        ->and($history[1]->created_at)->not->toBeNull()
+        ->and($unrelatedTask->fresh()->service_provider_id)->toBe($unrelatedProvider->id)
+        ->and($unrelatedTask->fresh()->updated_at->equalTo($unrelatedUpdatedAt))->toBeTrue()
+        ->and($unrelatedTask->assignmentHistory()->count())->toBe(0);
+});
+
 it('returns a schedule conflict indicator after assignment without changing the requested provider', function () {
     $provider = assignmentProvider();
     $task = assignmentTask();
