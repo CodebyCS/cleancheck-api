@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Alerts\Models;
 
 use App\Models\Task;
+use App\Models\User;
 use App\Modules\Alerts\Enums\AlertAction;
 use App\Modules\Alerts\Enums\AlertPriority;
 use App\Modules\Alerts\Enums\AlertResolution;
@@ -55,4 +56,10 @@ final class TaskAlert extends Model
     {
         return "task:{$taskId}:{$type->value}";
     }
+
+    public function resolvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by_user_id');
+    }
+    
 }

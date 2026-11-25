@@ -21,6 +21,7 @@ return new class extends Migration
             $table->dateTime('detected_at');
             $table->dateTime('resolved_at')->nullable();
             $table->string('resolution', 30)->nullable();
+            $table->string('resolution_note', 255)->nullable();
             $table->foreignId('resolved_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
