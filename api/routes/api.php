@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Billing\Http\Controllers\ProviderServiceEntryController;
 use App\Modules\Billing\Http\Controllers\RateController;
 use App\Modules\Billing\Http\Controllers\ServiceEntryAdjustmentController;
 use App\Modules\Billing\Http\Controllers\ServiceEntryController;
@@ -148,6 +149,7 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::get('/my/tasks/{task}/checklist', [TaskChecklistController::class, 'showForProvider'])->whereNumber('task');
         Route::patch('/my/tasks/{task}/checklist/items/{item}', [TaskChecklistController::class, 'markItem'])
             ->whereNumber(['task', 'item']);
+        Route::get('/my/service-entries/summary', [ProviderServiceEntryController::class, 'summary']);
     });
 
     // Legacy unlinked trial route retained for older installed builds.
