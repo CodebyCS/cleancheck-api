@@ -139,6 +139,10 @@ Corpo:
 
 Resposta `201` com a task criada. Erros `422`: reserva não encontrada, reserva sem propriedade ou sem check-in, prazo já passado, já existe inspeção para a reserva, ou o imóvel não existe/está inativo. Se o prestador padrão estiver ausente ou inativo, a task é criada com `service_provider_id: null`, sem entrada no histórico nem aviso ao prestador; a gestão pode encontrá-la em `GET /api/tasks/assignment-warnings`. `service_provider_id` enviado no pedido é rejeitado; não é possível escolher um prestador alternativo neste endpoint.
 
+#### `GET /api/service-providers?active=1` (admin e supervisor)
+
+Devolve em `data` uma lista não paginada apenas com prestadores ativos, ordenada pelo nome. Cada elemento contém `id`, `user_id`, `name`, `email`, `phone`, `address`, `postal_code`, `city`, `photo_url` e `is_active`. A resposta usa o resource de prestador; `photo_url` pode ser `null`. Sem `active=1`, a listagem inclui ativos e inativos. Utilizadores não autenticados recebem `401`; perfis sem permissão recebem `403`.
+
 #### `PATCH /api/tasks/{id}` (admin e supervisor)
 
 Edita os campos permitidos. Todos opcionais:
@@ -164,7 +168,7 @@ Content-Type: application/json
 { "service_provider_id": 7 }
 ```
 
-A resposta `200` devolve a task atualizada em `data`, incluindo `id` e `service_provider_id`, e um array de nível superior `assignment_warnings`. Se a atribuição deixar a tarefa em conflito com outra tarefa aberta do mesmo prestador, o array contém `schedule_conflict` e os `conflicting_task_ids`; se não houver conflito, devolve `[]`. Este indicador é informativo: a API mantém o prestador enviado no pedido e nunca escolhe outro automaticamente. A lista global de avisos continua disponível em `GET /api/tasks/assignment-warnings`. As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
+A resposta `200` devolve a task atualizada em `data`, incluindo `id`, `service_provider_id` e `service_provider` (nome do prestador efetivamente atribuído), e um array de nível superior `assignment_warnings`. Se a atribuição deixar a tarefa em conflito com outra tarefa aberta do mesmo prestador, o array contém `schedule_conflict` e os `conflicting_task_ids`; se não houver conflito, devolve `[]`. Este indicador é informativo: a API mantém o prestador enviado no pedido e nunca escolhe outro automaticamente. A lista global de avisos continua disponível em `GET /api/tasks/assignment-warnings`. As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
 
 Exemplo de resposta com conflito:
 
