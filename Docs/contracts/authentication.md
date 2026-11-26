@@ -318,7 +318,8 @@ Credenciais utilizáveis, cookies e tokens reais não devem ser incluídos neste
 | Ler e importar ficheiros iCal | Permitido | Permitido | 403 |
 | Consultar lista de tarefas | Todas as disponíveis | Todas as disponíveis | Apenas as atribuídas ao próprio |
 | Consultar detalhe de tarefa | Permitido | Permitido | Apenas se atribuída ao próprio; restantes devolvem 404 |
-| Criar, alterar, atribuir, eliminar e restaurar tarefas | Permitido, sujeito às regras de negócio | Permitido, sujeito às regras de negócio | 403 |
+| Criar, alterar, eliminar e restaurar tarefas | Permitido, sujeito às regras de negócio | Permitido, sujeito às regras de negócio | 403 |
+| Atribuir ou reatribuir um prestador a uma tarefa | Permitido, sujeito às regras de negócio | Permitido, sujeito às regras de negócio | 403, sem alterar o prestador atual nem o histórico |
 | Consultar `/api/user` | Própria identidade | Própria identidade | Própria identidade |
 | Consultar `/api/profile` | Próprio registo de prestador, se existir | Próprio registo de prestador, se existir | Próprio registo de prestador |
 

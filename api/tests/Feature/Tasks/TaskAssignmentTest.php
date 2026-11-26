@@ -257,21 +257,43 @@ it('records first assignment and successive reassignments without losing history
         ))->toBeTrue();
 });
 
-it('allows reassignment in non-completed states', function (string $status) {
+it('allows admin and supervisor to reassign a task in non-completed states', function (string $status, string $role) {
     $old = assignmentProvider();
     $new = assignmentProvider();
     $task = assignmentTask($status, $old->id);
 
-    authenticateApiUser(userWithRole('admin'));
+    authenticateApiUser(userWithRole($role));
 
     $this->patchJson("/api/tasks/{$task->id}", [
-            'service_provider_id' => $new->id,
-        ])
-        ->assertOk();
+        'service_provider_id' => $new->id,
+    ])->assertOk()
+        ->assertJsonPath('data.service_provider_id', $new->id);
 
     expect($task->fresh()->service_provider_id)->toBe($new->id)
         ->and($task->assignmentHistory()->count())->toBe(1);
-})->with(['pending', 'in_progress', 'cancelled']);
+})->with([
+    'admin: pending' => ['pending', 'admin'],
+    'admin: in progress' => ['in_progress', 'admin'],
+    'admin: cancelled' => ['cancelled', 'admin'],
+    'supervisor: pending' => ['pending', 'supervisor'],
+    'supervisor: in progress' => ['in_progress', 'supervisor'],
+    'supervisor: cancelled' => ['cancelled', 'supervisor'],
+]);
+
+it('rejects reassignment by the assigned provider without changing the task or its history', function () {
+    $current = assignmentProvider();
+    $replacement = assignmentProvider();
+    $task = assignmentTask('pending', $current->id);
+
+    authenticateApiUser($current->user);
+
+    $this->patchJson("/api/tasks/{$task->id}", [
+        'service_provider_id' => $replacement->id,
+    ])->assertForbidden();
+
+    expect($task->fresh()->service_provider_id)->toBe($current->id)
+        ->and($task->assignmentHistory()->count())->toBe(0);
+});
 
 it('rejects reassignment of a completed task and rejects removal', function () {
     $old = assignmentProvider();
