@@ -8,6 +8,7 @@ use App\Modules\Properties\Models\ServiceProvider;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'task_id',
@@ -59,5 +60,11 @@ class ServiceEntry extends Model
     public function rate(): BelongsTo
     {
         return $this->belongsTo(Rate::class);
+    }
+
+    // Corrections recorded after the entry was created, oldest first.
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(ServiceEntryAdjustment::class)->orderBy('created_at')->orderBy('id');
     }
 }
