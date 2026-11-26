@@ -100,6 +100,12 @@ class CompleteTask
             return $task;
         }
 
+        if (now()->lt($task->scheduled_start_at)) {
+            throw ValidationException::withMessages([
+                'scheduled_start_at' => 'A tarefa só pode ser concluída a partir do horário agendado.',
+            ]);
+        }
+
         if (
             $task->status !== 'in_progress'
             && !($allowPending && $task->status === 'pending')
