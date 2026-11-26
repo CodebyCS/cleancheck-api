@@ -17,6 +17,7 @@ use App\Modules\Tasks\Actions\UpdateTask;
 use App\Modules\Tasks\Actions\ListTasks;
 use App\Modules\Tasks\Actions\CancelTask;
 use App\Modules\Tasks\Actions\CompleteTask;
+use App\Modules\Properties\Services\TaskAssignmentWarnings;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -41,7 +42,7 @@ class TaskController extends Controller
      */
     public function store(StoreTaskRequest $request, CreateManualTask $action): JsonResponse
     {
-        $task = $action->execute($request->integer('booking_id'));
+        $task = $action->execute($request->integer('booking_id'), $request->user()->id);
 
         return (new TaskStaffResource($task))
             ->response()
@@ -51,7 +52,12 @@ class TaskController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateTaskRequest $request, int $task, UpdateTask $action): JsonResponse
+    public function update(
+        UpdateTaskRequest $request,
+        int $task,
+        UpdateTask $action,
+        TaskAssignmentWarnings $assignmentWarnings,
+    ): JsonResponse
     {
         $updatedTask = $action->manual(
             $task,
@@ -59,7 +65,11 @@ class TaskController extends Controller
             $request->user()->id,
         );
 
-        return (new TaskStaffResource($updatedTask))->response();
+        return (new TaskStaffResource($updatedTask))
+            ->additional([
+                'assignment_warnings' => $assignmentWarnings->scheduleConflictsForTask($updatedTask),
+            ])
+            ->response();
     }
 
     /**

@@ -111,7 +111,7 @@ it('reactivates a provider so the account can log in again', function () {
 });
 
 it('filters service providers by active state', function () {
-    createServiceProvider('ana@example.test');
+    $active = createServiceProvider('ana@example.test');
     $bruno = createServiceProvider('bruno@example.test');
     $user = $bruno->user;
     $user->is_active = false;
@@ -123,7 +123,14 @@ it('filters service providers by active state', function () {
     $this->getJson('/api/service-providers?active=1')
         ->assertOk()
         ->assertJsonCount(1, 'data')
-        ->assertJsonPath('data.0.email', 'ana@example.test');
+        ->assertJsonPath('data.0.id', $active->id)
+        ->assertJsonPath('data.0.name', $active->user->name)
+        ->assertJsonPath('data.0.email', 'ana@example.test')
+        ->assertJsonPath('data.0.is_active', true)
+        ->assertJsonStructure(['data' => [[
+            'id', 'user_id', 'name', 'email', 'phone', 'address',
+            'postal_code', 'city', 'photo_url', 'is_active',
+        ]]]);
 
     $this->getJson('/api/service-providers?active=0')
         ->assertOk()

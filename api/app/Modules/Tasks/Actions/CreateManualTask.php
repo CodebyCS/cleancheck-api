@@ -15,9 +15,10 @@ class CreateManualTask
         private BookingDataProvider $bookings,
         private CleaningSchedule $cleaningSchedule,
         private TaskGenerationValidator $validator,
+        private CreateAssignedTask $createTask,
     ) {}
 
-    public function execute(int $bookingId): Task
+    public function execute(int $bookingId, int $userId): Task
     {
         $data = $this->bookings->find($bookingId)
             ?? throw ValidationException::withMessages(['booking_id' => 'Reserva não encontrada.']);
@@ -44,14 +45,14 @@ class CreateManualTask
         $schedule = $this->cleaningSchedule->calculate($type, $data->checkIn, null, $data->propertySchedule);
 
         try {
-            return Task::create([
+            return $this->createTask->execute([
                 'booking_id'         => $bookingId,
                 'property_id'        => $data->propertyId,
                 'type'               => $type,
                 'status'             => 'pending',
                 'scheduled_start_at' => $schedule['scheduled_start_at'],
                 'scheduled_end_at'   => $schedule['scheduled_end_at'],
-            ]);
+            ], $userId);
         } catch (UniqueConstraintViolationException $exception) {
             $existing = Task::withTrashed()
                 ->where('booking_id', $bookingId)

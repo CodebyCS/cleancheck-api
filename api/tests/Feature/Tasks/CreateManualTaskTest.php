@@ -4,6 +4,7 @@ namespace Tests\Feature\Tasks;
 
 use App\Models\Task;
 use App\Modules\Tasks\Actions\CreateManualTask;
+use App\Modules\Tasks\Actions\CreateAssignedTask;
 use App\Modules\Tasks\Contracts\BookingDataProvider;
 use App\Modules\Tasks\Services\CleaningSchedule;
 use App\Modules\Tasks\Support\BookingSnapshot;
@@ -48,6 +49,18 @@ class CreateManualTaskTest extends TestCase
 
             $table->unique(['booking_id', 'type']);
         });
+
+        // CreateAssignedTask records the initial assignment in this table.
+        // This unit test uses a deliberately minimal SQLite schema with FK
+        // checks disabled, so mirror the columns needed by the relation.
+        Schema::create('task_assignment_history', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('task_id');
+            $table->unsignedBigInteger('previous_service_provider_id')->nullable();
+            $table->unsignedBigInteger('new_service_provider_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->timestamp('created_at')->useCurrent();
+        });
     }
 
     private function snapshot(): BookingSnapshot
@@ -88,10 +101,24 @@ class CreateManualTaskTest extends TestCase
                 }
             });
 
+        $createTask = $this->createMock(CreateAssignedTask::class);
+        $createTask->method('execute')->willReturnCallback(function (array $attributes, ?int $userId = null): Task {
+            $attributes['service_provider_id'] = 77;
+            $task = Task::create($attributes);
+            $task->assignmentHistory()->create([
+                'previous_service_provider_id' => null,
+                'new_service_provider_id' => 77,
+                'user_id' => $userId,
+                'created_at' => now(),
+            ]);
+            return $task;
+        });
+
         return new CreateManualTask(
             $bookings,
             new CleaningSchedule(),
             $validator,
+            $createTask,
         );
     }
 
@@ -99,7 +126,7 @@ class CreateManualTaskTest extends TestCase
     {
         $action = $this->makeAction($this->snapshot());
 
-        $task = $action->execute(1);
+        $task = $action->execute(1, 100);
 
         $this->assertInstanceOf(Task::class, $task);
         $this->assertSame('checkin_inspection', $task->type);
@@ -141,7 +168,7 @@ class CreateManualTaskTest extends TestCase
         $action = $this->makeAction($this->snapshot());
 
         try {
-            $action->execute(1);
+            $action->execute(1, 100);
             $this->fail('Era esperada uma ValidationException.');
         } catch (ValidationException $exception) {
             $this->assertSame(
@@ -168,7 +195,7 @@ class CreateManualTaskTest extends TestCase
         $action = $this->makeAction($this->snapshot());
 
         try {
-            $action->execute(1);
+            $action->execute(1, 100);
             $this->fail('Era esperada uma ValidationException.');
         } catch (ValidationException $exception) {
             $this->assertSame(
@@ -186,7 +213,7 @@ class CreateManualTaskTest extends TestCase
         $action = $this->makeAction(null);
 
         try {
-            $action->execute(1);
+            $action->execute(1, 100);
             $this->fail('Era esperada uma ValidationException.');
         } catch (ValidationException $exception) {
             $this->assertSame(
@@ -212,7 +239,7 @@ class CreateManualTaskTest extends TestCase
         $action = $this->makeAction($snapshot);
 
         try {
-            $action->execute(1);
+            $action->execute(1, 100);
             $this->fail('Era esperada uma ValidationException.');
         } catch (ValidationException $exception) {
             $this->assertSame(

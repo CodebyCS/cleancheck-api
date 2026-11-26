@@ -19,11 +19,13 @@ afterEach(fn () => Carbon::setTestNow());
 
 function rescheduleProperty(): Property
 {
+    $provider = createServiceProvider('reschedule-default@example.test');
     return Property::create([
         'name' => 'Casa do Reagendamento',
         'address' => 'Rua Fictícia 11',
         'postal_code' => '1200-011',
         'city' => 'Lisboa',
+        'responsible_service_provider_id' => $provider->id,
     ]);
 }
 
@@ -155,4 +157,26 @@ it('ignores bookings that do not exist or are no longer reserved', function () {
     app(UpdateTask::class)->forBooking(999999);
 
     expect($task->fresh()->scheduled_start_at->format('Y-m-d H:i'))->toBe('2026-11-20 11:30');
+});
+it('keeps the assigned provider and the agreed amount when the booking is rescheduled', function () {
+    $provider = createServiceProvider('reschedule-provider@example.test');
+    $booking = rescheduleBooking(rescheduleProperty(), 'assigned', '2026-11-16 15:00:00', '2026-11-20 11:00:00');
+    $task = app(CreateCheckoutCleaningTask::class)->execute($booking->id);
+
+    Task::whereKey($task->id)->update([
+        'service_provider_id' => $provider->id,
+        'agreed_amount' => 45,
+    ]);
+
+    $booking->update(['overridden_check_out_at' => '2026-11-22 11:00:00']);
+
+    app(UpdateTask::class)->forBooking($booking->id);
+    app(UpdateTask::class)->forBooking($booking->id);
+
+    $task = $task->fresh();
+
+    expect($task->scheduled_start_at->format('Y-m-d H:i'))->toBe('2026-11-22 11:30')
+        ->and($task->service_provider_id)->toBe($provider->id)
+        ->and((float) $task->agreed_amount)->toBe(45.0)
+        ->and(Task::where('booking_id', $booking->id)->count())->toBe(1);
 });
