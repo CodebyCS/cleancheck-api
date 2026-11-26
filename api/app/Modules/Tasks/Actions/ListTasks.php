@@ -14,7 +14,7 @@ class ListTasks
     public function forStaff(array $filters): LengthAwarePaginator
     {
         $query = Task::query()
-            ->with(['property', 'serviceProvider.user', 'completedBy.role'])
+            ->with(['property', 'serviceProvider.user', 'completedBy.role', 'evidenceAcceptedBy'])
             ->withExists(['videos as has_video', 'evidences as has_evidence']);
 
         if (($filters['deleted'] ?? null) === 'only') {
@@ -39,7 +39,7 @@ class ListTasks
     public function findForStaff(int $taskId): Task
     {
         return Task::withTrashed()
-            ->with(['property', 'serviceProvider.user', 'completedBy.role'])
+            ->with(['property', 'serviceProvider.user', 'completedBy.role', 'evidenceAcceptedBy'])
             ->withExists(['videos as has_video', 'evidences as has_evidence'])
             ->findOrFail($taskId);
     }

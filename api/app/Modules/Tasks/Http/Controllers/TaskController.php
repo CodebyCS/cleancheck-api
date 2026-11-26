@@ -21,6 +21,7 @@ use App\Modules\Tasks\Actions\CompleteTask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -60,6 +61,23 @@ class TaskController extends Controller
         );
 
         return (new TaskStaffResource($updatedTask))->response();
+    }
+
+    public function completeMany(Request $request, CompleteTask $action): AnonymousResourceCollection
+    {
+        $validated = $request->validate([
+            'task_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'task_ids.*' => ['required', 'integer', 'distinct', Rule::exists('tasks', 'id')->whereNull('deleted_at')],
+            'accept_missing_evidence' => ['sometimes', 'boolean'],
+        ]);
+
+        $tasks = $action->forStaffMany(
+            $validated['task_ids'],
+            $request->user()->id,
+            $validated['accept_missing_evidence'] ?? false,
+        );
+
+        return TaskStaffResource::collection($tasks);
     }
 
     /**

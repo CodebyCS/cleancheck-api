@@ -56,6 +56,8 @@ it('starts and completes an assigned task without requiring evidence and safely 
     ]);
     $task = makeTaskForExecutionTest($provider->id);
 
+    $task->update(['scheduled_start_at' => now()->subMinute()]);
+
     authenticateApiUser($providerUser);
 
     $startResponse = $this->postJson("/api/my/tasks/{$task->id}/start")
@@ -90,6 +92,25 @@ it('starts and completes an assigned task without requiring evidence and safely 
     expect($task->fresh()->status)->toBe('completed')
         ->and($task->fresh()->started_at)->not->toBeNull()
         ->and($task->fresh()->completed_at)->not->toBeNull();
+});
+
+it('does not allow starting an assigned task before its scheduled start', function () {
+    $providerUser = userWithRole('service_provider');
+    $provider = $providerUser->serviceProvider()->create([
+        'phone' => '910000209',
+    ]);
+
+    $task = makeTaskForExecutionTest($provider->id);
+    $task->update(['scheduled_start_at' => now()->addHour()]);
+
+    authenticateApiUser($providerUser);
+
+    $this->postJson("/api/my/tasks/{$task->id}/start")
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('scheduled_start_at');
+
+    expect($task->fresh()->status)->toBe('pending')
+        ->and($task->fresh()->started_at)->toBeNull();
 });
 
 it('rejects completing a pending task and executing a cancelled task', function () {
@@ -197,8 +218,8 @@ it('completes an in-progress task through the staff endpoint', function (string 
         ->and($task->fresh()->completed_at)->not->toBeNull();
 })->with(['admin', 'supervisor']);
 
-it('does not allow staff to complete a pending task', function () {
-    $staffUser = userWithRole('admin');
+it('allows staff to complete a pending task', function (string $role) {
+    $staffUser = userWithRole($role);
 
     $providerUser = userWithRole('service_provider');
     $provider = $providerUser->serviceProvider()->create([
@@ -207,15 +228,16 @@ it('does not allow staff to complete a pending task', function () {
 
     $task = makeTaskForExecutionTest($provider->id);
 
-    expect(fn () => app(CompleteTask::class)->forStaff(
-        $task->id,
-        $staffUser->id,
-    ))->toThrow(ValidationException::class);
+    authenticateApiUser($staffUser);
 
-    expect($task->fresh()->status)->toBe('pending')
-        ->and($task->fresh()->completed_at)->toBeNull()
-        ->and($task->fresh()->completed_by_user_id)->toBeNull();
-});
+    $this->postJson("/api/tasks/{$task->id}/complete")
+        ->assertOk()
+        ->assertJsonPath('data.status', 'completed')
+        ->assertJsonPath('data.completed_by', $staffUser->name);
+
+    expect($task->fresh()->completed_by_user_id)->toBe($staffUser->id)
+        ->and($task->fresh()->completed_at)->not->toBeNull();
+})->with(['admin', 'supervisor']);
 
 it('returns the name of the staff member who completed the task', function () {
     $staffUser = userWithRole('admin');
