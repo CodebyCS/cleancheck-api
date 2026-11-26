@@ -4,6 +4,8 @@ namespace App\Modules\Checklists\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Task;
+use App\Modules\Checklists\Actions\MarkChecklistItem;
+use App\Modules\Checklists\Http\Requests\MarkChecklistItemRequest;
 use App\Modules\Checklists\Http\Resources\TaskChecklistResource;
 use App\Modules\Checklists\Services\TaskChecklists;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +25,19 @@ class TaskChecklistController extends Controller
     public function showForProvider(Request $request, int $task): JsonResponse
     {
         return $this->respond($this->providerTask($request, $task));
+    }
+
+    // Provider: marks a single item of their own task as done or not done.
+    public function markItem(MarkChecklistItemRequest $request, int $task, int $item, MarkChecklistItem $action): JsonResponse
+    {
+        $checklist = $action->execute(
+            $this->providerTask($request, $task),
+            $item,
+            $request->boolean('done'),
+            $request->user(),
+        );
+
+        return (new TaskChecklistResource($checklist))->response();
     }
 
     private function respond(Task $task): JsonResponse

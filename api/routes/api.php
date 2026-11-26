@@ -136,6 +136,8 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::post('/my/tasks/{task}/complete', [ProviderTaskController::class, 'complete'])->whereNumber('task');
         Route::patch('/my/tasks/{task}/notes', [ProviderTaskController::class, 'updateNotes'])->whereNumber('task');
         Route::get('/my/tasks/{task}/checklist', [TaskChecklistController::class, 'showForProvider'])->whereNumber('task');
+        Route::patch('/my/tasks/{task}/checklist/items/{item}', [TaskChecklistController::class, 'markItem'])
+            ->whereNumber(['task', 'item']);
     });
 
     // Legacy unlinked trial route retained for older installed builds.
