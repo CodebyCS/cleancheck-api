@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
 use App\Modules\Billing\Http\Controllers\RateController;
+use App\Modules\Billing\Http\Controllers\ServiceEntryAdjustmentController;
 use App\Modules\Billing\Http\Controllers\ServiceEntryController;
 use App\Modules\Checklists\Http\Controllers\ChecklistTemplateController;
 use App\Modules\Checklists\Http\Controllers\TaskChecklistController;
@@ -125,6 +126,8 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::get('/checklist-templates/{checklistTemplate}', [ChecklistTemplateController::class, 'show'])
             ->whereNumber('checklistTemplate');
         Route::get('/tasks/{task}/checklist', [TaskChecklistController::class, 'showForStaff'])->whereNumber('task');
+        Route::post('/service-entries/{serviceEntry}/adjustments', [ServiceEntryAdjustmentController::class, 'store'])
+            ->whereNumber('serviceEntry');
     });
 
     Route::middleware('role:service_provider')->group(function (): void {
