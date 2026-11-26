@@ -8,6 +8,7 @@ use App\Modules\Billing\Http\Requests\ListServiceEntriesRequest;
 use App\Modules\Billing\Http\Resources\ServiceEntryResource;
 use App\Modules\Billing\Models\ServiceEntry;
 use App\Modules\Billing\Services\RecordServiceEntry;
+use App\Modules\Billing\Support\Cents;
 use App\Modules\Properties\Models\Property;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,9 @@ use Illuminate\Support\Carbon;
 
 class ServiceEntryController extends Controller
 {
+    private const ADJUSTMENTS_SUM_SQL = 'SELECT COALESCE(SUM(service_entry_adjustments.amount), 0)'
+        .' FROM service_entry_adjustments WHERE service_entry_adjustments.service_entry_id = service_entries.id';
+
     /**
      * Review list: entries, totals per currency and completed tasks that still have no entry.
      */
@@ -24,19 +28,28 @@ class ServiceEntryController extends Controller
 
         $query = $this->filtered(ServiceEntry::query(), $filters);
 
+        // total is the final amount (original plus adjustments); the parts are kept for the review.
         $totals = (clone $query)
-            ->selectRaw('currency, COUNT(*) as entries, SUM(amount) as total')
+            ->selectRaw('currency, COUNT(*) as entries, SUM(amount) as original_total')
+            ->selectRaw('SUM(('.self::ADJUSTMENTS_SUM_SQL.')) as adjustments_total')
             ->groupBy('currency')
             ->orderBy('currency')
             ->get()
-            ->map(fn ($row) => [
-                'currency' => $row->currency,
-                'entries' => (int) $row->entries,
-                'total' => number_format((float) $row->total, 2, '.', ''),
-            ]);
+            ->map(function ($row) {
+                $original = Cents::from($row->original_total);
+                $adjustments = Cents::from($row->adjustments_total);
+
+                return [
+                    'currency' => $row->currency,
+                    'entries' => (int) $row->entries,
+                    'original_total' => Cents::format($original),
+                    'adjustments_total' => Cents::format($adjustments),
+                    'total' => Cents::format($original + $adjustments),
+                ];
+            });
 
         $entries = $query
-            ->with(['serviceProvider.user:id,name', 'property:id,name'])
+            ->with(['serviceProvider.user:id,name', 'property:id,name', 'adjustments'])
             ->orderByDesc('service_date')
             ->orderByDesc('id')
             ->paginate($filters['per_page'] ?? 50)
@@ -48,6 +61,16 @@ class ServiceEntryController extends Controller
                 'tasks_without_entry' => $this->tasksWithoutEntry($filters),
             ]])
             ->response();
+    }
+
+    // Review detail: the original entry, every adjustment and the final amount.
+    public function show(int $serviceEntry): ServiceEntryResource
+    {
+        $entry = ServiceEntry::query()
+            ->with(['serviceProvider.user:id,name', 'property:id,name', 'adjustments.createdBy:id,name'])
+            ->findOrFail($serviceEntry);
+
+        return (new ServiceEntryResource($entry))->withAdjustments();
     }
 
     // Retry for a completed task that had no amount (e.g. after creating the missing rate).
@@ -64,7 +87,7 @@ class ServiceEntryController extends Controller
             'A tarefa não é elegível ou não tem valor definido (valor combinado, tarifa ou valor base).',
         );
 
-        return (new ServiceEntryResource($entry->load(['serviceProvider.user:id,name', 'property:id,name'])))
+        return (new ServiceEntryResource($entry->load(['serviceProvider.user:id,name', 'property:id,name', 'adjustments'])))
             ->response()
             ->setStatusCode($existed ? 200 : 201);
     }

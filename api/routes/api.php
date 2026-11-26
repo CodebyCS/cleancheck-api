@@ -118,6 +118,7 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::get('/rates', [RateController::class, 'index']);
         Route::post('/rates', [RateController::class, 'store']);
         Route::get('/service-entries', [ServiceEntryController::class, 'index']);
+        Route::get('/service-entries/{serviceEntry}', [ServiceEntryController::class, 'show'])->whereNumber('serviceEntry');
         Route::post('/tasks/{task}/service-entry', [ServiceEntryController::class, 'storeForTask'])->whereNumber('task');
 
         // Checklists: versioned templates per task type (append-only)
