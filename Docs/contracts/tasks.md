@@ -15,7 +15,7 @@ Perfis (nomes dos roles): `admin`, `supervisor` e `service_provider`. Nas secç�
 | `id` | Identificador único da tarefa |
 | `booking_id` | Identificador da reserva associada |
 | `property_id` | Identificador da propriedade associada |
-| `service_provider_id` | Prestador de serviços atribuído. Pode ser nulo inicialmente |
+| `service_provider_id` | Prestador de serviços atribuído. Novas tasks usam o prestador padrão ativo configurado no imóvel |
 | `type` | Tipo de tarefa: `checkout_cleaning` ou `checkin_inspection` |
 | `status` | Estado da tarefa: `pending`, `in_progress`, `completed` ou `cancelled` |
 | `scheduled_start_at` | Início da janela operacional |
@@ -47,9 +47,9 @@ As respostas da API incluem `is_overdue` (booleano). É `true` quando a task est
 
 - Criada automaticamente, a partir de uma reserva.
 - O estado inicial é `pending`.
+- O prestador responsável é obtido de `properties.responsible_service_provider_id` no momento da criação. O prestador e o utilizador associado têm de existir e estar ativos; não é escolhido um substituto automaticamente. O valor acordado não é atribuído na criação.
 - `scheduled_start_at`: 11:30 do dia do check-out. Se a propriedade tiver hora de saída (`default_check_out_time`), 30 min depois dessa hora.
 - `scheduled_end_at`: 14:30 do dia do próximo check-in da mesma propriedade. Se a propriedade tiver hora de entrada (`default_check_in_time`), 30 min antes dessa hora. Se não existir próximo check-in conhecido, fica `null`.
-- O valor acordado não é atribuído na criação. O prestador é o prestador padrão do imóvel, se estiver ativo (ver [`default-provider.md`](default-provider.md)).
 - O check-in da própria reserva não é obrigatório para criar a limpeza.
 
 ### 3.2 Inspeção antes do check-in (`checkin_inspection`)
@@ -129,7 +129,7 @@ Detalhe de uma task, mesmo apagada ou cancelada, dentro de `data`. Mesmos campos
 
 #### `POST /api/tasks` (admin e supervisor)
 
-Cria uma inspeção (`checkin_inspection`) para uma reserva.
+Cria uma inspeção (`checkin_inspection`) para uma reserva, atribuindo o prestador padrão ativo do imóvel associado.
 
 Corpo:
 
@@ -137,7 +137,11 @@ Corpo:
 { "booking_id": 12 }
 ```
 
-Resposta `201` com a task criada. Erros `422`: reserva não encontrada, reserva sem propriedade ou sem check-in, prazo já passado, ou já existe inspeção para a reserva.
+Resposta `201` com a task criada. Erros `422`: reserva não encontrada, reserva sem propriedade ou sem check-in, prazo já passado, já existe inspeção para a reserva, ou o imóvel não existe/está inativo. Se o prestador padrão estiver ausente ou inativo, a task é criada com `service_provider_id: null`, sem entrada no histórico nem aviso ao prestador; a gestão pode encontrá-la em `GET /api/tasks/assignment-warnings`. `service_provider_id` enviado no pedido é rejeitado; não é possível escolher um prestador alternativo neste endpoint.
+
+#### `GET /api/service-providers?active=1` (admin e supervisor)
+
+Devolve em `data` uma lista não paginada apenas com prestadores ativos, ordenada pelo nome. Cada elemento contém `id`, `user_id`, `name`, `email`, `phone`, `address`, `postal_code`, `city`, `photo_url` e `is_active`. A resposta usa o resource de prestador; `photo_url` pode ser `null`. Sem `active=1`, a listagem inclui ativos e inativos. Utilizadores não autenticados recebem `401`; perfis sem permissão recebem `403`.
 
 #### `PATCH /api/tasks/{id}` (admin e supervisor)
 
@@ -164,9 +168,23 @@ Content-Type: application/json
 { "service_provider_id": 7 }
 ```
 
-A resposta `200` devolve a task atualizada, incluindo `id` e `service_provider_id`. As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
+A resposta `200` devolve a task atualizada em `data`, incluindo `id`, `service_provider_id` e `service_provider` (nome do prestador efetivamente atribuído), e um array de nível superior `assignment_warnings`. Se a atribuição deixar a tarefa em conflito com outra tarefa aberta do mesmo prestador, o array contém `schedule_conflict` e os `conflicting_task_ids`; se não houver conflito, devolve `[]`. Este indicador é informativo: a API mantém o prestador enviado no pedido e nunca escolhe outro automaticamente. A lista global de avisos continua disponível em `GET /api/tasks/assignment-warnings`. As respostas `401`, `403`, `404` e `422` indicam, respetivamente, autenticação inválida, falta de permissão, tarefa inexistente ou dados/regra inválidos.
 
-Cada alteração efetiva cria uma entrada em `task_assignment_history` com `task_id`, `previous_service_provider_id` (`null` na primeira atribuição), `new_service_provider_id`, `user_id` do autor e `created_at`. A atualização da task e a criação da entrada ocorrem na mesma transação. As atribuições existentes antes desta funcionalidade não têm histórico retroativo. A eliminação física de tarefas ou prestadores referenciados pelo histórico é restringida; a eliminação normal de tasks continua lógica.
+Exemplo de resposta com conflito:
+
+```json
+{
+  "data": {
+    "id": 42,
+    "service_provider_id": 7
+  },
+  "assignment_warnings": [
+    { "code": "schedule_conflict", "conflicting_task_ids": [43] }
+  ]
+}
+```
+
+Cada alteração efetiva cria uma entrada em `task_assignment_history` com `task_id`, `previous_service_provider_id` (`null` na primeira atribuição), `new_service_provider_id`, `user_id` do autor e `created_at`. A atualização da task e a criação da entrada ocorrem na mesma transação. Na criação manual, `user_id` identifica o utilizador autenticado; na criação automática, `user_id: null` identifica o sistema. As atribuições existentes antes desta funcionalidade não têm histórico retroativo. A eliminação física de tarefas ou prestadores referenciados pelo histórico é restringida; a eliminação normal de tasks continua lógica.
 
 #### `POST /api/tasks/{id}/cancel` (admin e supervisor)
 
@@ -196,7 +214,7 @@ Um utilizador sem registo de prestador recebe `403` em todas as rotas `/api/my/.
 
 Lista paginada das tasks atribuídas ao prestador autenticado. Mesmos filtros da lista de staff, exceto `deleted` (enviá-lo responde `422`).
 
-Cada elemento: `id`, `property`, `property_address`, `access_instructions`, `type`, `scheduled_start_at`, `scheduled_end_at`, `is_overdue`, `status`, `started_at`, `completed_at`, `provider_notes` e `missing_evidence`.
+Cada elemento: `id`, `property`, `property_address`, `access_instructions`, `type`, `scheduled_start_at`, `scheduled_end_at`, `is_overdue`, `status`, `has_video`, `missing_evidence`, `started_at`, `completed_at` e `provider_notes`. A lista é ordenada por `scheduled_start_at` e, em caso de empate, por `id`.
 
 #### `GET /api/my/tasks/{id}` (service_provider)
 
@@ -256,7 +274,8 @@ A verificação de perfil por rota é feita pelo middleware `role` nas rotas (ve
 - O funcionamento depende de reservas e propriedades válidas na base de dados.
 - **Autorização por perfil:** as rotas de gestão (`/tasks...`) exigem `admin` ou `supervisor`; as `/my/tasks/*` e os impedimentos exigem `service_provider` (middleware `role`). Um perfil sem permissão recebe `403`.
 - **Formato das respostas:** listagem, detalhe e endpoints de escrita que devolvem uma tarefa usam Resources com envelope `data`. Cancelamento e remoção respondem `204`, sem corpo.
-- `responsible_service_provider_id` e `base_cleaning_amount` ainda não são usados pelas Tasks. `access_instructions` já é devolvido no resource do prestador.
+- `responsible_service_provider_id` define o prestador padrão usado apenas por novas tasks. Alterar esse campo não modifica tasks existentes nem o respetivo histórico. `base_cleaning_amount` ainda não é usado pelas Tasks. `access_instructions` já é devolvido no resource do prestador.
+- Se uma reserva importada não tiver um prestador padrão existente e ativo, a task de limpeza é criada com `service_provider_id: null`, sem histórico inicial nem aviso ao prestador, e aparece em `GET /api/tasks/assignment-warnings` (`no_default_provider` ou `default_provider_inactive`). A alteração posterior do padrão não reatribui essa task; a gestão deve atribuí-la manualmente.
 - A desativação de uma propriedade já cancela e apaga logicamente as tasks `pending` elegíveis. O bloqueio da desativação de um prestador com tarefas abertas ainda aguarda a integração de `ProviderOpenTasks` pelo módulo Properties.
 - A limpeza da reserva anterior da mesma propriedade **não é recalculada** quando um check-in entra, muda ou sai. O seu `scheduled_end_at` pode ficar desatualizado.
 - Pedidos simultâneos para criar a limpeza da mesma reserva: o índice único protege contra duplicados e o segundo pedido devolve a task já criada.

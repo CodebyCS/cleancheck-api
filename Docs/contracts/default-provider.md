@@ -20,14 +20,14 @@ Quando uma tarefa é criada sem prestador, a API consulta o prestador padrão do
 | Situação | Resultado |
 |---|---|
 | Prestador padrão ativo | A tarefa fica atribuída a ele |
-| Prestador padrão inativo | A tarefa fica sem prestador. Nenhum outro é escolhido automaticamente |
-| Imóvel sem prestador padrão | A tarefa fica sem prestador |
+| Prestador padrão inativo ou inexistente | A tarefa é criada sem prestador. Nenhum outro é escolhido automaticamente |
+| Imóvel sem prestador padrão | A tarefa é criada sem prestador |
 | A tarefa já vem com prestador | Mantém o prestador recebido |
 
 - Aplica-se às limpezas criadas a partir das reservas (`checkout_cleaning`) e às inspeções criadas pela gestão (`checkin_inspection`).
 - Só afeta tarefas novas. Mudar o prestador padrão do imóvel não altera as tarefas que já existem; essas mantêm o responsável até uma troca manual.
-- A atribuição automática não cria entrada em `task_assignment_history`, porque não há utilizador a fazer a alteração. O histórico regista as trocas manuais.
-- Implementação: observador do modelo `Task` no módulo Properties (`AssignDefaultProviderOnTaskCreating`). O módulo Tasks não foi alterado.
+- Quando há prestador padrão ativo, a criação automática grava a atribuição inicial em `task_assignment_history` com `user_id: null` (autor sistema) e envia `TaskAssigned` ao prestador. Sem prestador válido, a tarefa fica sem histórico de atribuição e não é enviada notificação ao prestador. O histórico também regista as trocas manuais.
+- Implementação: `CreateAssignedTask` resolve o prestador dentro da transação, grava a task e, apenas quando há prestador, cria o histórico inicial e emite `TaskAssigned`. O observador `AssignDefaultProviderOnTaskCreating` mantém o default aplicado nas restantes criações diretas do modelo.
 
 ## Troca manual
 
@@ -36,6 +36,8 @@ Continua a ser feita em `PATCH /api/tasks/{id}` com `service_provider_id`, apena
 ## Avisos para a gestão
 
 `GET /api/tasks/assignment-warnings`, apenas `admin` e `supervisor`. Filtro opcional `?property_id=`.
+
+O indicador `schedule_conflict` é devolvido nesta listagem, dentro de `data[].warnings[]`, e inclui `conflicting_task_ids`. Após atribuir ou reatribuir uma tarefa, `PATCH /api/tasks/{id}` também devolve os conflitos dessa tarefa no array de nível superior `assignment_warnings`; sem conflito, devolve `[]`. O PATCH mantém o prestador pedido e nunca escolhe outro automaticamente. Os dois contratos têm âmbitos diferentes: um descreve a lista de avisos da gestão e o outro o resultado da alteração individual.
 
 Lista as tarefas abertas (`pending` ou `in_progress`, não eliminadas) que precisam de atenção, ordenadas pelo início agendado. Os avisos são calculados em cada pedido e desaparecem quando a causa é resolvida. O endpoint não atribui nem troca prestadores.
 
@@ -70,3 +72,7 @@ Lista as tarefas abertas (`pending` ou `in_progress`, não eliminadas) que preci
 
 - Uma tarefa sem fim agendado conta como um momento único no início, para efeitos de conflito.
 - `property_id` não numérico responde `422`.
+
+## Rollback da migration do autor de sistema
+
+A migration `2026_11_24_120000_allow_system_task_assignment_author` permite `user_id: null` para atribuições automáticas. O `down()` recusa o rollback se existirem registos desse tipo, para não apagar histórico silenciosamente. Nesse caso, é necessário preservar ou tratar explicitamente esses registos antes de reverter a migration.

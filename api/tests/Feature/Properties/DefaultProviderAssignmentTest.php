@@ -56,17 +56,26 @@ it('assigns a new checkout cleaning to the default provider of the property', fu
 
     $task = defaultProviderCleaning(defaultProviderProperty($default));
 
-    expect($task->service_provider_id)->toBe($default->id);
+    expect($task->service_provider_id)->toBe($default->id)
+        ->and($task->assignmentHistory()->count())->toBe(1)
+        ->and($task->assignmentHistory()->first()->new_service_provider_id)->toBe($default->id)
+        ->and($task->assignmentHistory()->first()->user_id)->toBeNull();
 });
 
 it('assigns a new inspection created by staff to the default provider', function () {
     $default = createServiceProvider('padrao@example.test');
     $booking = defaultProviderBooking(defaultProviderProperty($default));
-    authenticateApiUser(userWithRole('supervisor'));
+    $actor = userWithRole('supervisor');
+    authenticateApiUser($actor);
 
     $this->postJson('/api/tasks', ['booking_id' => $booking->id])
         ->assertCreated()
         ->assertJsonPath('data.service_provider_id', $default->id);
+
+    $task = Task::query()->where('booking_id', $booking->id)->firstOrFail();
+    $history = $task->assignmentHistory()->sole();
+    expect($history->new_service_provider_id)->toBe($default->id)
+        ->and($history->user_id)->toBe($actor->id);
 });
 
 it('keeps a provider that was already chosen for the task', function () {
@@ -81,13 +90,15 @@ it('keeps a provider that was already chosen for the task', function () {
 
 it('leaves the task unassigned when the default provider is inactive, without picking another', function () {
     $default = createServiceProvider('inativo@example.test');
-    $default->user->update(['is_active' => false]);
+    $default->user->forceFill(['is_active' => false])->save();
     createServiceProvider('disponivel@example.test');
     $property = defaultProviderProperty($default);
 
     $task = defaultProviderCleaning($property);
 
-    expect($task->service_provider_id)->toBeNull();
+    expect($task->service_provider_id)->toBeNull()
+        ->and($task->assignmentHistory()->count())->toBe(0);
+    $this->assertDatabaseCount('booking_notices', 0);
 
     authenticateApiUser(userWithRole('admin'));
 
@@ -104,7 +115,9 @@ it('leaves the task unassigned when the property has no default provider', funct
 
     $task = defaultProviderCleaning(defaultProviderProperty(null));
 
-    expect($task->service_provider_id)->toBeNull();
+    expect($task->service_provider_id)->toBeNull()
+        ->and($task->assignmentHistory()->count())->toBe(0);
+    $this->assertDatabaseCount('booking_notices', 0);
 
     authenticateApiUser(userWithRole('admin'));
 
@@ -112,6 +125,24 @@ it('leaves the task unassigned when the property has no default provider', funct
         ->assertOk()
         ->assertJsonPath('data.0.task_id', $task->id)
         ->assertJsonPath('data.0.warnings.0.code', 'no_default_provider');
+});
+
+it('rejects a nonexistent property default without choosing another provider', function () {
+    $property = defaultProviderProperty(null);
+    createServiceProvider('disponivel@example.test');
+    authenticateApiUser(userWithRole('admin'));
+
+    $this->putJson("/api/properties/{$property->id}", [
+        'name' => $property->name,
+        'address' => $property->address,
+        'postal_code' => $property->postal_code,
+        'city' => $property->city,
+        'responsible_service_provider_id' => 999999,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('responsible_service_provider_id');
+
+    expect($property->fresh()->responsible_service_provider_id)->toBeNull()
+        ->and(defaultProviderCleaning($property->fresh())->service_provider_id)->toBeNull();
 });
 
 it('applies a new default provider only to future tasks', function () {
@@ -133,7 +164,7 @@ it('applies a new default provider only to future tasks', function () {
 
     expect($existing->fresh()->service_provider_id)->toBe($first->id)
         ->and($future->service_provider_id)->toBe($second->id)
-        ->and(TaskAssignmentHistory::count())->toBe(0);
+        ->and(TaskAssignmentHistory::count())->toBe(2);
 });
 
 it('lets admin and supervisor change the provider of a task and records it', function (string $role) {
@@ -146,9 +177,12 @@ it('lets admin and supervisor change the provider of a task and records it', fun
         ->assertOk()
         ->assertJsonPath('data.service_provider_id', $other->id);
 
-    $history = TaskAssignmentHistory::where('task_id', $task->id)->sole();
+    $history = TaskAssignmentHistory::where('task_id', $task->id)
+        ->whereNotNull('user_id')
+        ->sole();
 
-    expect($history->previous_service_provider_id)->toBe($default->id)
+    expect(TaskAssignmentHistory::where('task_id', $task->id)->count())->toBe(2)
+        ->and($history->previous_service_provider_id)->toBe($default->id)
         ->and($history->new_service_provider_id)->toBe($other->id)
         ->and($history->user_id)->toBe($user->id);
 })->with(['admin', 'supervisor']);
@@ -162,7 +196,8 @@ it('forbids a service provider from changing the provider of a task', function (
     $this->patchJson("/api/tasks/{$task->id}", ['service_provider_id' => $other->id])->assertForbidden();
 
     expect($task->fresh()->service_provider_id)->toBe($default->id)
-        ->and(TaskAssignmentHistory::count())->toBe(0);
+        ->and(TaskAssignmentHistory::where('task_id', $task->id)->count())->toBe(1)
+        ->and(TaskAssignmentHistory::where('task_id', $task->id)->first()->user_id)->toBeNull();
 });
 
 it('flags inactive providers, schedule conflicts and unassigned tasks', function () {
@@ -174,7 +209,7 @@ it('flags inactive providers, schedule conflicts and unassigned tasks', function
     $first = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => $busy->id, ...$window]);
     $second = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => $busy->id, ...$window]);
     $inactive = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => $leaving->id]);
-    $leaving->user->update(['is_active' => false]);
+    $leaving->user->forceFill(['is_active' => false])->save();
     $unassigned = Task::factory()->create(['property_id' => $property->id, 'service_provider_id' => null]);
     // The property gets an active default after the task was created.
     $property->update(['responsible_service_provider_id' => $busy->id]);
@@ -182,6 +217,7 @@ it('flags inactive providers, schedule conflicts and unassigned tasks', function
 
     authenticateApiUser(userWithRole('admin'));
 
+    $historyCountBefore = TaskAssignmentHistory::count();
     $warnings = collect($this->getJson("/api/tasks/assignment-warnings?property_id={$property->id}")
         ->assertOk()
         ->json('data'))
@@ -192,6 +228,53 @@ it('flags inactive providers, schedule conflicts and unassigned tasks', function
         ->and($warnings[$second->id]['warnings'][0]['conflicting_task_ids'])->toBe([$first->id])
         ->and($warnings[$inactive->id]['warnings'][0]['code'])->toBe('provider_inactive')
         ->and($warnings[$unassigned->id]['warnings'][0]['code'])->toBe('unassigned');
+
+    expect($first->fresh()->service_provider_id)->toBe($busy->id)
+        ->and($second->fresh()->service_provider_id)->toBe($busy->id)
+        ->and($inactive->fresh()->service_provider_id)->toBe($leaving->id)
+        ->and($unassigned->fresh()->service_provider_id)->toBeNull()
+        ->and($first->fresh()->status)->toBe('pending')
+        ->and($second->fresh()->status)->toBe('pending');
+    $this->assertSame($historyCountBefore, TaskAssignmentHistory::count());
+});
+
+it('does not report a schedule conflict when tasks for the same provider do not overlap', function () {
+    $provider = createServiceProvider('sem-conflito@example.test');
+    $property = defaultProviderProperty(null);
+    $first = Task::factory()->create([
+        'property_id' => $property->id,
+        'service_provider_id' => $provider->id,
+        'scheduled_start_at' => '2030-01-07 09:00:00',
+        'scheduled_end_at' => '2030-01-07 10:00:00',
+    ]);
+    $second = Task::factory()->create([
+        'property_id' => $property->id,
+        'service_provider_id' => $provider->id,
+        'scheduled_start_at' => '2030-01-07 10:00:00',
+        'scheduled_end_at' => '2030-01-07 11:00:00',
+    ]);
+    $historyCountBefore = TaskAssignmentHistory::count();
+    authenticateApiUser(userWithRole('admin'));
+
+    $response = $this->getJson("/api/tasks/assignment-warnings?property_id={$property->id}")
+        ->assertOk();
+
+    expect(collect($response->json('data'))->pluck('task_id')->all())->toBeEmpty()
+        ->and($first->fresh()->service_provider_id)->toBe($provider->id)
+        ->and($second->fresh()->service_provider_id)->toBe($provider->id);
+    $this->assertSame($historyCountBefore, TaskAssignmentHistory::count());
+});
+
+it('allows admins and supervisors to list assignment warnings', function (string $role) {
+    authenticateApiUser(userWithRole($role));
+
+    $this->getJson('/api/tasks/assignment-warnings')
+        ->assertOk()
+        ->assertExactJson(['data' => []]);
+})->with(['admin', 'supervisor']);
+
+it('requires authentication to list assignment warnings', function () {
+    $this->getJson('/api/tasks/assignment-warnings')->assertUnauthorized();
 });
 
 it('forbids service providers from listing assignment warnings', function () {

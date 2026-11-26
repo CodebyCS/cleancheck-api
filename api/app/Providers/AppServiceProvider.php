@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\Task;
+use App\Modules\Billing\Observers\TaskCompletionObserver;
+use App\Modules\Checklists\Observers\AttachChecklistOnTaskCreated;
 use App\Modules\Properties\Observers\AssignDefaultProviderOnTaskCreating;
 use App\Modules\Reservations\Events\BookingCancelled;
 use App\Modules\Reservations\Events\BookingDeleted;
@@ -76,6 +78,12 @@ class AppServiceProvider extends ServiceProvider
 
         // New tasks get the property's default provider (only when active).
         Task::observe(AssignDefaultProviderOnTaskCreating::class);
+
+        // A completed task gets its single service entry, without changing the Tasks module.
+        Task::observe(TaskCompletionObserver::class);
+
+        // New tasks keep the checklist version in force when they were created.
+        Task::observe(AttachChecklistOnTaskCreated::class);
 
         Event::listen(
             BookingUpdated::class,
