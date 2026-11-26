@@ -214,7 +214,7 @@ Um utilizador sem registo de prestador recebe `403` em todas as rotas `/api/my/.
 
 Lista paginada das tasks atribuídas ao prestador autenticado. Mesmos filtros da lista de staff, exceto `deleted` (enviá-lo responde `422`).
 
-Cada elemento: `id`, `property`, `property_address`, `access_instructions`, `type`, `scheduled_start_at`, `scheduled_end_at`, `is_overdue`, `status`, `started_at`, `completed_at`, `provider_notes` e `missing_evidence`.
+Cada elemento: `id`, `property`, `property_address`, `access_instructions`, `type`, `scheduled_start_at`, `scheduled_end_at`, `is_overdue`, `status`, `has_video`, `missing_evidence`, `started_at`, `completed_at` e `provider_notes`. A lista é ordenada por `scheduled_start_at` e, em caso de empate, por `id`.
 
 #### `GET /api/my/tasks/{id}` (service_provider)
 
