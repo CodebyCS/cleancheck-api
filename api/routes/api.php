@@ -137,6 +137,7 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::post('/service-entries/{serviceEntry}/adjustments', [ServiceEntryAdjustmentController::class, 'store'])
             ->whereNumber('serviceEntry');
         Route::get('/reports/monthly', [MonthlyReportController::class, 'show']);
+        Route::get('/reports/monthly/export', [MonthlyReportController::class, 'export']);
     });
 
     Route::middleware('role:service_provider')->group(function (): void {
