@@ -80,6 +80,11 @@ class Task extends Model
         return $this->hasMany(TaskEvidence::class);
     }
 
+    public function executions(): HasMany
+    {
+        return $this->hasMany(TaskExecution::class);
+    }
+
     public function videos(): HasMany
     {
         return $this->evidences()->where('kind', 'video');

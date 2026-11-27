@@ -8,6 +8,7 @@ use App\Models\TaskEvidence;
 use App\Modules\Evidence\Http\Requests\StoreEvidenceTrialRequest;
 use App\Modules\Tasks\Http\Requests\StoreTaskEvidenceRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -44,16 +45,32 @@ class TaskEvidenceController extends Controller
             abort(500, 'Não foi possível guardar o anexo.');
         }
 
-        $evidence = TaskEvidence::create([
-            'task_id' => $taskModel->id,
-            'uploaded_by_user_id' => $request->user()->id,
-            'kind' => $kind,
-            'disk' => $diskName,
-            'path' => $path,
-            'mime_type' => $file->getMimeType(),
-            'size_bytes' => $file->getSize(),
-            'original_name' => $file->getClientOriginalName(),
-        ]);
+        try {
+            $evidence = DB::transaction(function () use ($taskModel, $providerId, $request, $kind, $diskName, $path, $file): TaskEvidence {
+                // Recheck ownership after the upload: reassignment may have occurred meanwhile.
+                $current = Task::query()->whereKey($taskModel->id)
+                    ->where('service_provider_id', $providerId)->lockForUpdate()->firstOrFail();
+                if (! in_array($current->status, ['in_progress', 'completed'], true)) {
+                    throw ValidationException::withMessages([
+                        'status' => 'Só é possível anexar mídia a tarefas em andamento ou concluídas.',
+                    ]);
+                }
+
+                return TaskEvidence::create([
+                    'task_id' => $current->id,
+                    'uploaded_by_user_id' => $request->user()->id,
+                    'kind' => $kind,
+                    'disk' => $diskName,
+                    'path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'size_bytes' => $file->getSize(),
+                    'original_name' => $file->getClientOriginalName(),
+                ]);
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk($diskName)->delete($path);
+            throw $exception;
+        }
 
         return response()->json([
             'data' => [

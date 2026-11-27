@@ -21,6 +21,8 @@ use App\Modules\Reservations\Http\Controllers\BookingController;
 use App\Modules\Reservations\Http\Controllers\BookingNoticeController;
 use App\Modules\Tasks\Http\Controllers\TaskController;
 use App\Modules\Tasks\Http\Controllers\TaskEvidenceController;
+use App\Modules\Tasks\Http\Controllers\TaskExecutionController;
+use App\Modules\Tasks\Http\Controllers\TaskCheckoutInspectionController;
 use App\Modules\Tasks\Http\Controllers\TaskImpedimentController;
 use App\Modules\Tasks\Http\Controllers\ProviderTaskController;
 use App\Modules\Alerts\Http\Controllers\TaskAlertController;
@@ -92,6 +94,8 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::get('/tasks', [TaskController::class, 'index']);
         Route::get('/tasks/assignment-warnings', [TaskAssignmentWarningController::class, 'index']);
         Route::get('/tasks/{task}', [TaskController::class, 'show'])->whereNumber('task');
+        Route::get('/tasks/{task}/executions', [TaskExecutionController::class, 'index'])->whereNumber('task');
+        Route::get('/tasks/{task}/checkout-inspection', [TaskCheckoutInspectionController::class, 'index'])->whereNumber('task');
         Route::get('/tasks/{task}/evidence', [TaskEvidenceController::class, 'index'])
             ->whereNumber('task');
         Route::get('/tasks/{task}/evidence/{evidence}/file', [TaskEvidenceController::class, 'file'])
@@ -140,6 +144,10 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
     
         Route::get('/my/tasks', [ProviderTaskController::class, 'index']);
         Route::get('/my/tasks/{task}', [ProviderTaskController::class, 'show'])->whereNumber('task');
+        Route::get('/my/tasks/{task}/executions', [TaskExecutionController::class, 'index'])->whereNumber('task');
+        Route::post('/my/tasks/{task}/executions', [TaskExecutionController::class, 'store'])->whereNumber('task');
+        Route::get('/my/tasks/{task}/checkout-inspection', [TaskCheckoutInspectionController::class, 'index'])->whereNumber('task');
+        Route::post('/my/tasks/{task}/checkout-inspection', [TaskCheckoutInspectionController::class, 'store'])->whereNumber('task');
         Route::post('/my/tasks/{task}/evidence', [TaskEvidenceController::class, 'store'])
             ->whereNumber('task')
             ->middleware('throttle:10,1');
