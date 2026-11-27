@@ -157,7 +157,7 @@ it('soft deletes a pending task and keeps its status', function () {
         ->and($deleted->deleted_at)->not->toBeNull();
 });
 
-it('rejects deleting tasks that are in progress or completed', function (string $status) {
+it('rejects deleting tasks that are in progress, rejected or completed', function (string $status) {
     $task = makeEndpointTask(['status' => $status]);
 
     authenticateApiUser(userWithRole('admin'));
@@ -167,7 +167,7 @@ it('rejects deleting tasks that are in progress or completed', function (string 
         ->assertJsonValidationErrors('status');
 
     expect($task->fresh()->deleted_at)->toBeNull();
-})->with(['in_progress', 'completed']);
+})->with(['in_progress', 'rejected', 'completed']);
 
 it('forbids a service provider from deleting or restoring tasks', function () {
     $task = makeEndpointTask();

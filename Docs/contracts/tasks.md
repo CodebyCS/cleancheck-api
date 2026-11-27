@@ -17,7 +17,7 @@ Perfis (nomes dos roles): `admin`, `supervisor` e `service_provider`. Nas secç�
 | `property_id` | Identificador da propriedade associada |
 | `service_provider_id` | Prestador de serviços atribuído. Novas tasks usam o prestador padrão ativo configurado no imóvel |
 | `type` | Tipo de tarefa: `checkout_cleaning` ou `checkin_inspection` |
-| `status` | Estado da tarefa: `pending`, `in_progress`, `completed` ou `cancelled` |
+| `status` | Estado da tarefa: `pending`, `in_progress`, `completed`, `rejected` ou `cancelled` |
 | `scheduled_start_at` | Início da janela operacional |
 | `scheduled_end_at` | Fim da janela operacional. Pode ser nulo |
 | `started_at` | Início real da tarefa. Pode ser nulo |
@@ -41,7 +41,7 @@ A tabela inclui ainda `created_at`, `updated_at` e `deleted_at` (eliminação l�
 
 ### 2.2 Task em atraso (`is_overdue`)
 
-As respostas da API incluem `is_overdue` (booleano). É `true` quando a task está `pending` ou `in_progress` e o `scheduled_end_at` já passou. É `false` nos restantes casos, incluindo quando `scheduled_end_at` é nulo. A regra está num só sítio (`Task::isOverdue()`) e é usada nas respostas de staff e de prestador. Uma task em atraso deixa de o estar quando é concluída.
+As respostas da API incluem `is_overdue` (booleano). É `true` quando a task está `pending`, `in_progress` ou `rejected` e o `scheduled_end_at` já passou. É `false` nos restantes casos, incluindo quando `scheduled_end_at` é nulo. A regra está num só sítio (`Task::isOverdue()`) e é usada nas respostas de staff e de prestador. Uma task em atraso deixa de o estar quando é concluída.
 
 ### 2.3 Evidência em falta e aceite
 
@@ -114,10 +114,10 @@ Todas as eliminações são lógicas (soft delete).
 | Concluir | Prestador | Só as suas tasks `in_progress` e a partir de `scheduled_start_at`. Idempotente: se já está `completed`, devolve-a sem alterar `completed_at`. Não exige fotos nem vídeo |
 | Concluir | Adm/supervisor | Pode concluir tasks `pending` ou `in_progress`, individualmente ou em lote, a partir de `scheduled_start_at`. Antes desse instante, responde `422`. Não exige evidência |
 | Aceitar conclusão sem evidência | Adm/supervisor | Para task já `completed` pelo prestador sem evidência, exige confirmação explícita. Regista utilizador e data/hora do aceite sem alterar `completed_at` nem o autor original da conclusão |
-| Cancelar por reserva | Booking (automático) | Reserva cancelada: as tasks `pending` ficam `cancelled` e são apagadas logicamente. Não toca em `in_progress` nem `completed` (fica em log). Repetir a chamada é seguro |
+| Cancelar por reserva | Booking (automático) | Reserva cancelada: as tasks `pending` ficam `cancelled` e são apagadas logicamente. Não toca em `in_progress`, `rejected` nem `completed` (fica em log). Repetir a chamada é seguro |
 | Apagar por reserva | Booking (automático) | Reserva removida: apaga logicamente as tasks da reserva (sem mudar o estado). Não apaga `in_progress` nem `completed` (fica em log). Repetir a chamada é seguro |
-| Cancelar | Adm/supervisor | Task `pending` fica `cancelled` e é apagada logicamente. Repetir o pedido é seguro (sucesso sem alterações). Erro se estiver `in_progress` ou `completed`, ou se já tiver sido apagada por outra operação. Cada cancelamento efetivo regista origem, utilizador responsável quando aplicável e data/hora em `task_cancellation_history`; repetições não duplicam o histórico. |
-| Apagar | Adm/supervisor | Soft delete sem mudar o estado (para remoções administrativas, por exemplo uma task criada por engano). Erro se a task estiver `in_progress` ou `completed` |
+| Cancelar | Adm/supervisor | Task `pending` fica `cancelled` e é apagada logicamente. Repetir o pedido é seguro (sucesso sem alterações). Erro se estiver `in_progress`, `rejected` ou `completed`, ou se já tiver sido apagada por outra operação. Cada cancelamento efetivo regista origem, utilizador responsável quando aplicável e data/hora em `task_cancellation_history`; repetições não duplicam o histórico. |
+| Apagar | Adm/supervisor | Soft delete sem mudar o estado (para remoções administrativas, por exemplo uma task criada por engano). Erro se a task estiver `in_progress`, `rejected` ou `completed` |
 | Restaurar | Adm/supervisor | Só tasks apagadas (canceladas ou apagadas). A reserva tem de existir e estar ativa, os dados são revalidados, e não se restaura se a reserva (checkout) ou o prazo (inspeção) já passou. A task volta a `pending`, com `started_at` e `completed_at` limpos e as datas recalculadas (na inspeção, o início passa a ser o momento do restauro) |
 
 ## 6. API
@@ -136,10 +136,10 @@ Lista paginada, ordenada por `scheduled_start_at` e depois por `id`. Filtros opc
 | --- | --- |
 | `from`, `to` | Data do início da task (`to` não pode ser anterior a `from`) |
 | `property_id` | Inteiro |
-| `status` | `pending`, `in_progress`, `completed` ou `cancelled` |
+| `status` | `pending`, `in_progress`, `completed`, `rejected` ou `cancelled` |
 | `type` | `checkout_cleaning` ou `checkin_inspection` |
 | `unassigned` | Booleano. Quando `true`, devolve apenas tarefas sem prestador atribuído |
-| `overdue` | Booleano. Quando `true`, devolve tarefas `pending` ou `in_progress` cujo `scheduled_end_at` já passou |
+| `overdue` | Booleano. Quando `true`, devolve tarefas `pending`, `in_progress` ou `rejected` cujo `scheduled_end_at` já passou |
 | `deleted` | `only`: devolve só as tasks apagadas (incluindo as canceladas). Por defeito, as apagadas não aparecem |
 | `per_page` | 1 a 100, por defeito 15 |
 
@@ -177,7 +177,7 @@ Edita os campos permitidos. Todos opcionais:
 
 Qualquer outro campo enviado (por exemplo `status` ou datas) é ignorado. Resposta `200` com a task. Erro `422` se a task estiver concluída.
 
-Apenas administradores e supervisores podem enviar `service_provider_id`; outros perfis recebem `403`. A primeira atribuição só é permitida numa tarefa `pending`. A reatribuição é permitida em `pending`, `in_progress` e `cancelled`, mas não em `completed` (regra provisória). Um prestador inexistente ou inativo é rejeitado com `422`. O envio de `null` é rejeitado; enviar o mesmo prestador não altera a atribuição nem cria histórico.
+Apenas administradores e supervisores podem enviar `service_provider_id`; outros perfis recebem `403`. A primeira atribuição só é permitida numa tarefa `pending`. A reatribuição é permitida em `pending`, `in_progress`, `rejected` e `cancelled`, mas não em `completed` (regra provisória). Um prestador inexistente ou inativo é rejeitado com `422`. O envio de `null` é rejeitado; enviar o mesmo prestador não altera a atribuição nem cria histórico.
 
 Exemplo de atribuição ou reatribuição:
 

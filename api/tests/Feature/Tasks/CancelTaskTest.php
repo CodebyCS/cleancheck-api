@@ -123,8 +123,8 @@ it('does not convert a task previously soft deleted by another operation into ca
     $this->assertSoftDeleted('tasks', ['id' => $task->id]);
 });
 
-it('rejects manual cancellation of tasks that are in progress or completed', function () {
-    foreach (['in_progress', 'completed'] as $status) {
+it('rejects manual cancellation of tasks that are in progress, rejected or completed', function () {
+    foreach (['in_progress', 'rejected', 'completed'] as $status) {
         $bookingId = makeBookingForCancellationTest();
         $task = makeTaskForCancellationTest($bookingId, status: $status);
 
@@ -140,17 +140,19 @@ it('rejects manual cancellation of tasks that are in progress or completed', fun
     }
 });
 
-it('cancels pending tasks from a booking and preserves in-progress and completed tasks', function () {
+it('cancels pending tasks from a booking and preserves in-progress, rejected and completed tasks', function () {
     $bookingId = makeBookingForCancellationTest();
     $pendingTask = makeTaskForCancellationTest($bookingId, 'checkout_cleaning', 'pending');
     $inProgressTask = makeTaskForCancellationTest($bookingId, 'checkin_inspection', 'in_progress');
 
     $anotherBookingId = makeBookingForCancellationTest();
-    $completedTask = makeTaskForCancellationTest($anotherBookingId, 'checkout_cleaning', 'completed');
+    $rejectedTask = makeTaskForCancellationTest($anotherBookingId, 'checkout_cleaning', 'rejected');
+    $completedTask = makeTaskForCancellationTest($anotherBookingId, 'checkin_inspection', 'completed');
 
     $action = app(CancelTask::class);
     $action->forBooking($bookingId);
     $action->forBooking($bookingId);
+    $action->forBooking($anotherBookingId);
     $action->forBooking($anotherBookingId);
     $cancelledPendingTask = Task::withTrashed()->findOrFail($pendingTask->id);
 
@@ -158,6 +160,8 @@ it('cancels pending tasks from a booking and preserves in-progress and completed
         ->and($cancelledPendingTask->deleted_at)->not->toBeNull()
         ->and($inProgressTask->fresh()->status)->toBe('in_progress')
         ->and($inProgressTask->fresh()->deleted_at)->toBeNull()
+        ->and($rejectedTask->fresh()->status)->toBe('rejected')
+        ->and($rejectedTask->fresh()->deleted_at)->toBeNull()
         ->and($completedTask->fresh()->status)->toBe('completed')
         ->and($completedTask->fresh()->deleted_at)->toBeNull();
 

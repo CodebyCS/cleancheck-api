@@ -271,7 +271,7 @@ it('allows reassignment in non-completed states', function (string $status) {
 
     expect($task->fresh()->service_provider_id)->toBe($new->id)
         ->and($task->assignmentHistory()->count())->toBe(1);
-})->with(['pending', 'in_progress', 'cancelled']);
+})->with(['pending', 'in_progress', 'rejected', 'cancelled']);
 
 it('rejects reassignment of a completed task and rejects removal', function () {
     $old = assignmentProvider();
