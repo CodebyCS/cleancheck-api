@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Billing\Http\Controllers\MonthlyReportController;
 use App\Modules\Billing\Http\Controllers\ProviderServiceEntryController;
 use App\Modules\Billing\Http\Controllers\RateController;
 use App\Modules\Billing\Http\Controllers\ServiceEntryAdjustmentController;
@@ -135,6 +136,8 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::get('/tasks/{task}/checklist', [TaskChecklistController::class, 'showForStaff'])->whereNumber('task');
         Route::post('/service-entries/{serviceEntry}/adjustments', [ServiceEntryAdjustmentController::class, 'store'])
             ->whereNumber('serviceEntry');
+        Route::get('/reports/monthly', [MonthlyReportController::class, 'show']);
+        Route::get('/reports/monthly/export', [MonthlyReportController::class, 'export']);
     });
 
     Route::middleware('role:service_provider')->group(function (): void {
