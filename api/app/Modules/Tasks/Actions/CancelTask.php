@@ -11,7 +11,7 @@ use App\Modules\Tasks\Events\TaskCancelled;
 
 class CancelTask
 {
-    private const PROTECTED_STATUSES = ['in_progress', 'completed'];
+    private const PROTECTED_STATUSES = ['in_progress', 'completed', 'rejected'];
 
     /** Cancel eligible tasks when a reservation is cancelled or removed. */
     public function forBooking(int $bookingId): void
@@ -24,7 +24,7 @@ class CancelTask
 
             foreach ($tasks as $task) {
                 if (in_array($task->status, self::PROTECTED_STATUSES, true)) {
-                    Log::warning('Reserva cancelada, mas a task já está em andamento ou concluída.', [
+                    Log::warning('Reserva cancelada, mas a task já está em andamento, rejeitada ou concluída.', [
                         'task_id' => $task->id,
                         'booking_id' => $bookingId,
                         'type' => $task->type,
@@ -90,7 +90,7 @@ class CancelTask
 
             if (in_array($task->status, self::PROTECTED_STATUSES, true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'Não é possível cancelar uma tarefa em andamento ou concluída.',
+                    'status' => 'Não é possível cancelar uma tarefa em andamento, rejeitada ou concluída.',
                 ]);
             }
 

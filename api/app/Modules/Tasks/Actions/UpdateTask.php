@@ -14,7 +14,7 @@ use Illuminate\Validation\ValidationException;
 
 class UpdateTask
 {
-    private const PROTECTED_STATUSES = ['in_progress', 'completed'];
+    private const PROTECTED_STATUSES = ['in_progress', 'completed', 'rejected'];
 
     private const EDITABLE_FIELDS = ['service_provider_id', 'agreed_amount', 'notes'];
 
@@ -37,7 +37,7 @@ class UpdateTask
 
         foreach ($tasks as $task) {
             if (in_array($task->status, self::PROTECTED_STATUSES, true)) {
-                Log::warning('Reserva alterada, mas a task já está em andamento ou concluída.', [
+                Log::warning('Reserva alterada, mas a task já está em andamento, rejeitada ou concluída.', [
                     'task_id'    => $task->id,
                     'booking_id' => $bookingId,
                     'status'     => $task->status,

@@ -18,7 +18,7 @@ class ListTasksRequest extends FormRequest
             'from'        => ['sometimes', 'date'],
             'to'          => ['sometimes', 'date', 'after_or_equal:from'],
             'property_id' => ['sometimes', 'integer'],
-            'status'      => ['sometimes', Rule::in(['pending', 'in_progress', 'completed', 'cancelled'])],
+            'status'      => ['sometimes', Rule::in(['pending', 'in_progress', 'completed', 'rejected', 'cancelled'])],
             'type'        => ['sometimes', Rule::in(['checkout_cleaning', 'checkin_inspection'])],
             'deleted'     => ['sometimes', Rule::in(['only'])],
             'unassigned'  => ['sometimes', 'boolean'],
