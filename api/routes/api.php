@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Resources\UserResource;
+use App\Modules\Billing\Http\Controllers\ProviderServiceEntryController;
 use App\Modules\Billing\Http\Controllers\RateController;
+use App\Modules\Billing\Http\Controllers\ServiceEntryAdjustmentController;
 use App\Modules\Billing\Http\Controllers\ServiceEntryController;
 use App\Modules\Checklists\Http\Controllers\ChecklistTemplateController;
 use App\Modules\Checklists\Http\Controllers\TaskChecklistController;
@@ -117,6 +119,7 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::get('/rates', [RateController::class, 'index']);
         Route::post('/rates', [RateController::class, 'store']);
         Route::get('/service-entries', [ServiceEntryController::class, 'index']);
+        Route::get('/service-entries/{serviceEntry}', [ServiceEntryController::class, 'show'])->whereNumber('serviceEntry');
         Route::post('/tasks/{task}/service-entry', [ServiceEntryController::class, 'storeForTask'])->whereNumber('task');
 
         // Checklists: versioned templates per task type (append-only)
@@ -125,6 +128,8 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::get('/checklist-templates/{checklistTemplate}', [ChecklistTemplateController::class, 'show'])
             ->whereNumber('checklistTemplate');
         Route::get('/tasks/{task}/checklist', [TaskChecklistController::class, 'showForStaff'])->whereNumber('task');
+        Route::post('/service-entries/{serviceEntry}/adjustments', [ServiceEntryAdjustmentController::class, 'store'])
+            ->whereNumber('serviceEntry');
     });
 
     Route::middleware('role:service_provider')->group(function (): void {
@@ -144,6 +149,7 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::get('/my/tasks/{task}/checklist', [TaskChecklistController::class, 'showForProvider'])->whereNumber('task');
         Route::patch('/my/tasks/{task}/checklist/items/{item}', [TaskChecklistController::class, 'markItem'])
             ->whereNumber(['task', 'item']);
+        Route::get('/my/service-entries/summary', [ProviderServiceEntryController::class, 'summary']);
     });
 
     // Legacy unlinked trial route retained for older installed builds.

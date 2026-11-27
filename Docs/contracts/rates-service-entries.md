@@ -2,7 +2,7 @@
 
 Fixa o valor de cada serviço elegível e garante um único lançamento por tarefa. Serve de base ao apuramento mensal; não representa pagamentos realizados.
 
-Todas as rotas exigem sessão válida (`auth:sanctum` e `access.valid`) e o perfil `admin` ou `supervisor`. O prestador recebe `403`. Erros de validação devolvem `422` com os campos em `errors`.
+Todas as rotas exigem sessão válida (`auth:sanctum` e `access.valid`) e o perfil `admin` ou `supervisor`, exceto o resumo mensal do prestador. O prestador recebe `403` nas restantes. Erros de validação devolvem `422` com os campos em `errors`.
 
 ## Tarifas
 
@@ -96,6 +96,8 @@ Um serviço é elegível quando a tarefa está concluída (`completed`), não fo
       "task_type": "checkout_cleaning",
       "service_date": "2026-12-10",
       "amount": "45.00",
+      "adjustments_total": "-5.00",
+      "final_amount": "40.00",
       "currency": "EUR",
       "amount_source": "rate",
       "rate_id": 3,
@@ -108,13 +110,126 @@ Um serviço é elegível quando a tarefa está concluída (`completed`), não fo
     "per_page": 50,
     "total": 1,
     "totals": [
-      { "currency": "EUR", "entries": 1, "total": "45.00" }
+      {
+        "currency": "EUR",
+        "entries": 1,
+        "original_total": "45.00",
+        "adjustments_total": "-5.00",
+        "total": "40.00"
+      }
     ],
     "tasks_without_entry": [41]
   }
 }
 ```
 
-- `meta.totals` soma os lançamentos filtrados, por moeda. Moedas diferentes nunca são somadas entre si.
+- `amount` é o valor original do lançamento e nunca muda. `final_amount` é o valor original mais a soma dos ajustes.
+- `meta.totals` soma os lançamentos filtrados, por moeda. `total` usa o valor final; `original_total` e `adjustments_total` mostram as parcelas. Moedas diferentes nunca são somadas entre si.
 - `meta.tasks_without_entry` lista até 100 tarefas concluídas, com prestador e sem lançamento, com os mesmos filtros. O mês usa o início agendado no fuso do imóvel, tal como a `service_date` dos lançamentos.
 - Os lançamentos são ordenados por data do serviço, do mais recente para o mais antigo.
+
+### Detalhe de conferência
+
+`GET /api/service-entries/{id}` devolve o lançamento no mesmo formato da lista, com o histórico de ajustes do mais antigo para o mais recente. Lançamento inexistente devolve `404`.
+
+```json
+{
+  "data": {
+    "id": 12,
+    "amount": "45.00",
+    "adjustments_total": "-5.00",
+    "final_amount": "40.00",
+    "currency": "EUR",
+    "adjustments": [
+      {
+        "id": 3,
+        "service_entry_id": 12,
+        "amount": "-5.00",
+        "reason": "Serviço incompleto",
+        "created_by": { "id": 1, "name": "Admin" },
+        "created_at": "2026-12-11T09:30:00+00:00"
+      }
+    ]
+  }
+}
+```
+
+(Campos restantes iguais aos da lista.)
+
+## Ajustes
+
+`POST /api/service-entries/{id}/adjustments` regista uma correção ao lançamento sem o alterar nem apagar. Resposta `201`.
+
+| Campo | Obrigatório | Regra |
+|---|---|---|
+| `amount` | Sim | Diferença com sinal, na moeda do lançamento: negativo reduz, positivo aumenta. Até 2 casas decimais, diferente de 0 |
+| `reason` | Sim | Texto até 500 caracteres |
+
+```json
+{
+  "data": {
+    "id": 3,
+    "service_entry_id": 12,
+    "amount": "-5.00",
+    "reason": "Serviço incompleto",
+    "created_by": { "id": 1, "name": "Admin" },
+    "created_at": "2026-12-11T09:30:00+00:00"
+  },
+  "meta": {
+    "currency": "EUR",
+    "original_amount": "45.00",
+    "adjustments_total": "-5.00",
+    "final_amount": "40.00"
+  }
+}
+```
+
+| Código | Quando |
+|---|---|
+| `201` | Ajuste registado |
+| `404` | Lançamento inexistente |
+| `422` | Campos inválidos, ou ajuste que deixaria o valor final negativo ("O ajuste deixaria o valor final do lançamento negativo.") |
+
+- Os ajustes não se editam nem se apagam. Um ajuste errado corrige-se com outro ajuste.
+- O valor final pode chegar a `0.00`, mas nunca fica negativo.
+
+## Resumo mensal do prestador
+
+`GET /api/my/service-entries/summary?month=AAAA-MM`, só para o perfil `service_provider`. Sem `month` usa o mês atual. Mês inválido devolve `422`; admin e supervisor recebem `403`.
+
+```json
+{
+  "data": {
+    "month": "2026-12",
+    "totals": [
+      {
+        "currency": "EUR",
+        "entries": 2,
+        "original_total": "75.00",
+        "adjustments_total": "-5.00",
+        "total": "70.00"
+      }
+    ],
+    "entries": [
+      {
+        "id": 12,
+        "task_id": 40,
+        "property_name": "Apartamento da Foz",
+        "task_type": "checkout_cleaning",
+        "service_date": "2026-12-10",
+        "amount": "45.00",
+        "adjustments_total": "-5.00",
+        "final_amount": "40.00",
+        "currency": "EUR",
+        "adjustments": [
+          { "amount": "-5.00", "reason": "Serviço incompleto", "created_at": "2026-12-11T09:30:00+00:00" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+- Só inclui os lançamentos do prestador com sessão iniciada.
+- Os lançamentos são ordenados por data do serviço, do mais antigo para o mais recente.
+- Nos ajustes o prestador vê o valor, o motivo e a data, mas não quem os registou.
