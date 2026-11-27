@@ -109,7 +109,8 @@ final class SyncBenchmark
 
         return match ($this->failures[$number] ?? null) {
             'http_500' => Http::response('Internal Server Error', 500),
-            'timeout' => Http::failedConnection(),
+            // failedConnection() gives a stub to call with the request, not the response itself.
+            'timeout' => (Http::failedConnection())($request),
             'invalid' => Http::response('<html><body>Not a calendar</body></html>', 200),
             default => Http::response(
                 SyntheticFeed::ics($this->feeds[$number] ?? []),

@@ -42,6 +42,10 @@ it('converges without lost bookings, duplicates or hidden failures', function ()
         ]);
     }
 
+    // Every failure must be an expected one (download or calendar), never an internal error.
+    expect(collect($report['rows'])->where('status', 'UNEXPECTED'))->toBeEmpty()
+        ->and(collect($report['rows'])->where('failure_kind', 'timeout')->pluck('status')->unique()->all())->toBe(['FETCH_FAILED']);
+
     expect($initial['outcomes']['ok'])->toBe(10)
         ->and($initial['created'])->toBe(60)
         // Repetition: only source 2, which failed before, creates its 6 bookings now.
