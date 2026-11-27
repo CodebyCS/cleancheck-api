@@ -28,6 +28,8 @@ class Task extends Model
         'started_at',
         'completed_at',
         'completed_by_user_id',
+        'evidence_accepted_at',
+        'evidence_accepted_by_user_id',
         'agreed_amount',
         'notes',
         'provider_notes',
@@ -41,6 +43,7 @@ class Task extends Model
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
         'agreed_amount' => 'decimal:2',
+        'evidence_accepted_at' => 'datetime',
     ];
 
     public function isOverdue(): bool
@@ -73,6 +76,11 @@ class Task extends Model
     public function completedBy()
     {
         return $this->belongsTo(User::class, 'completed_by_user_id');
+    }
+
+    public function evidenceAcceptedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'evidence_accepted_by_user_id');
     }
 
     public function evidences(): HasMany

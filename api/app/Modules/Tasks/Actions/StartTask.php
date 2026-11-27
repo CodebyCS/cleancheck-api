@@ -27,6 +27,12 @@ class StartTask
                 ]);
             }
 
+            if (now()->lt($task->scheduled_start_at)) {
+                throw ValidationException::withMessages([
+                    'scheduled_start_at' => 'A tarefa só pode ser iniciada a partir do horário agendado.',
+                ]);
+            }
+
             $task->update([
                 'status' => 'in_progress',
                 'started_at' => now(),

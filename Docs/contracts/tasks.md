@@ -11,7 +11,7 @@ Perfis (nomes dos roles): `admin`, `supervisor` e `service_provider`. Nas secç�
 ## 2. Campos da Task
 
 | Campo | Descrição |
-|---|---|
+| --- | --- |
 | `id` | Identificador único da tarefa |
 | `booking_id` | Identificador da reserva associada |
 | `property_id` | Identificador da propriedade associada |
@@ -23,6 +23,8 @@ Perfis (nomes dos roles): `admin`, `supervisor` e `service_provider`. Nas secç�
 | `started_at` | Início real da tarefa. Pode ser nulo |
 | `completed_at` | Conclusão real da tarefa. Pode ser nulo |
 | `completed_by_user_id` | ID do utilizador que concluiu a tarefa; nulo antes da conclusão |
+| `evidence_accepted_at` | Data/hora em que staff aceitou a conclusão sem evidência. Pode ser nulo |
+| `evidence_accepted_by_user_id` | ID do utilizador staff que aceitou a conclusão sem evidência. Pode ser nulo |
 | `agreed_amount` | Valor acordado. Pode ser nulo |
 | `notes` | Notas adicionais. Pode ser nulo |
 
@@ -31,7 +33,7 @@ A tabela inclui ainda `created_at`, `updated_at` e `deleted_at` (eliminação l�
 ### 2.1 Estados
 
 | Estado | Significado |
-|---|---|
+| --- | --- |
 | `pending` | Criada, ainda não iniciada |
 | `in_progress` | Iniciada pelo prestador |
 | `completed` | Concluída |
@@ -41,30 +43,48 @@ A tabela inclui ainda `created_at`, `updated_at` e `deleted_at` (eliminação l�
 
 As respostas da API incluem `is_overdue` (booleano). É `true` quando a task está `pending` ou `in_progress` e o `scheduled_end_at` já passou. É `false` nos restantes casos, incluindo quando `scheduled_end_at` é nulo. A regra está num só sítio (`Task::isOverdue()`) e é usada nas respostas de staff e de prestador. Uma task em atraso deixa de o estar quando é concluída.
 
+### 2.3 Evidência em falta e aceite
+
+As respostas incluem `missing_evidence`. É `true` quando uma task foi concluída por um prestador sem qualquer evidência e ainda não foi aceite explicitamente por staff. Uma foto ou um vídeo é suficiente para satisfazer a exigência de evidência; a conclusão não depende do envio de mídia.
+
+Quando staff aceita explicitamente a conclusão sem evidência, a API guarda `evidence_accepted_at` e `evidence_accepted_by_user_id`. O aceite não altera `completed_at` nem `completed_by_user_id`, que continuam a identificar a conclusão original. Após o aceite, `missing_evidence` passa a `false`.
+
 ## 3. Tipos de tarefa e janelas
 
 ### 3.1 Limpeza após checkout (`checkout_cleaning`)
 
 - Criada automaticamente, a partir de uma reserva.
+
 - O estado inicial é `pending`.
+
 - O prestador responsável é obtido de `properties.responsible_service_provider_id` no momento da criação. O prestador e o utilizador associado têm de existir e estar ativos; não é escolhido um substituto automaticamente. O valor acordado não é atribuído na criação.
+
 - `scheduled_start_at`: 11:30 do dia do check-out. Se a propriedade tiver hora de saída (`default_check_out_time`), 30 min depois dessa hora.
+
 - `scheduled_end_at`: 14:30 do dia do próximo check-in da mesma propriedade. Se a propriedade tiver hora de entrada (`default_check_in_time`), 30 min antes dessa hora. Se não existir próximo check-in conhecido, fica `null`.
+
 - O check-in da própria reserva não é obrigatório para criar a limpeza.
 
 ### 3.2 Inspeção antes do check-in (`checkin_inspection`)
 
 - Criada manualmente pelo adm/supervisor, sempre associada a uma reserva (normalmente a seguinte).
+
 - O estado inicial é `pending`.
+
 - `scheduled_start_at`: o momento em que a task é criada.
+
 - `scheduled_end_at`: 14:30 do dia do check-in da reserva (prazo máximo), ou 30 min antes da hora de entrada da propriedade, se definida.
+
 - Só pode ser criada se esse prazo ainda não passou.
+
 - Se a janela terminar sem a task estar concluída, a task fica em atraso (`is_overdue`) até ser concluída.
 
 ### 3.3 Regras comuns
 
 - Não pode existir mais do que uma task do mesmo tipo para a mesma reserva (índice único `booking_id` + `type`, que inclui as tasks apagadas).
+
 - Os horários seguem a precedência descrita em [`property-schedule.md`](property-schedule.md): o dia vem da reserva, a hora é 11:30/14:30, ou a da propriedade com 30 min de folga, se definida, e ambos são calculados no fuso da propriedade (`properties.timezone`). As datas são guardadas em UTC. Só o dia da reserva conta; a hora vem sempre da propriedade.
+
 - A propriedade da task é a propriedade da fonte da reserva.
 
 ## 4. Validações
@@ -72,7 +92,7 @@ As respostas da API incluem `is_overdue` (booleano). É `true` quando a task est
 Aplicadas sobre os dados da reserva antes de criar, atualizar ou restaurar:
 
 | Regra | Checkout | Inspeção |
-|---|---|---|
+| --- | --- | --- |
 | A reserva tem de existir e estar ativa (`status` `reserved`) | Sim | Sim |
 | A reserva tem de pertencer a uma propriedade | Sim | Sim |
 | Data de check-out válida | Sim | Não |
@@ -85,13 +105,15 @@ Aplicadas sobre os dados da reserva antes de criar, atualizar ou restaurar:
 Todas as eliminações são lógicas (soft delete).
 
 | Operação | Quem | Regras |
-|---|---|---|
+| --- | --- | --- |
 | Criar limpeza | Booking (automático) | Idempotente. Se já existe, devolve a existente. Se existe apagada, não recria |
 | Criar inspeção | Adm/supervisor | Erro se já existe (a mensagem da apagada orienta para o restore) |
 | Atualizar por reserva | Booking (automático) | Recalcula as datas. Na inspeção só muda o fim. Não mexe em tasks `in_progress` ou `completed` (fica em log). Dados inválidos ficam em log, sem falhar |
 | Editar | Adm/supervisor | Só `service_provider_id`, `agreed_amount` e `notes`. Tasks `completed` não se editam. Estado e datas não se alteram por aqui |
-| Iniciar | Prestador | Só as suas tasks `pending`. Idempotente: se já está `in_progress`, devolve-a sem alterar `started_at` |
-| Concluir | Prestador | Só as suas tasks `in_progress`. Idempotente: se já está `completed`, devolve-a sem alterar `completed_at`. Não exige fotos nem vídeo |
+| Iniciar | Prestador | Só as suas tasks `pending` e a partir de `scheduled_start_at`. Antes desse instante, responde `422`. Idempotente: se já está `in_progress`, devolve-a sem alterar `started_at` |
+| Concluir | Prestador | Só as suas tasks `in_progress` e a partir de `scheduled_start_at`. Idempotente: se já está `completed`, devolve-a sem alterar `completed_at`. Não exige fotos nem vídeo |
+| Concluir | Adm/supervisor | Pode concluir tasks `pending` ou `in_progress`, individualmente ou em lote, a partir de `scheduled_start_at`. Antes desse instante, responde `422`. Não exige evidência |
+| Aceitar conclusão sem evidência | Adm/supervisor | Para task já `completed` pelo prestador sem evidência, exige confirmação explícita. Regista utilizador e data/hora do aceite sem alterar `completed_at` nem o autor original da conclusão |
 | Cancelar por reserva | Booking (automático) | Reserva cancelada: as tasks `pending` ficam `cancelled` e são apagadas logicamente. Não toca em `in_progress` nem `completed` (fica em log). Repetir a chamada é seguro |
 | Apagar por reserva | Booking (automático) | Reserva removida: apaga logicamente as tasks da reserva (sem mudar o estado). Não apaga `in_progress` nem `completed` (fica em log). Repetir a chamada é seguro |
 | Cancelar | Adm/supervisor | Task `pending` fica `cancelled` e é apagada logicamente. Repetir o pedido é seguro (sucesso sem alterações). Erro se estiver `in_progress` ou `completed`, ou se já tiver sido apagada por outra operação. Cada cancelamento efetivo regista origem, utilizador responsável quando aplicável e data/hora em `task_cancellation_history`; repetições não duplicam o histórico. |
@@ -111,7 +133,7 @@ Respostas de lista (`GET /api/tasks` e `GET /api/my/tasks`) são paginadas: `dat
 Lista paginada, ordenada por `scheduled_start_at` e depois por `id`. Filtros opcionais:
 
 | Filtro | Regra |
-|---|---|
+| --- | --- |
 | `from`, `to` | Data do início da task (`to` não pode ser anterior a `from`) |
 | `property_id` | Inteiro |
 | `status` | `pending`, `in_progress`, `completed` ou `cancelled` |
@@ -121,7 +143,7 @@ Lista paginada, ordenada por `scheduled_start_at` e depois por `id`. Filtros opc
 | `deleted` | `only`: devolve só as tasks apagadas (incluindo as canceladas). Por defeito, as apagadas não aparecem |
 | `per_page` | 1 a 100, por defeito 15 |
 
-Cada elemento: `id`, `booking_id`, `property`, `property_address`, `type`, `scheduled_start_at`, `scheduled_end_at`, `started_at`, `is_overdue`, `service_provider_id`, `service_provider` (nome do prestador), `agreed_amount`, `status`, `completed_at`, `completed_by` (nome de quem concluiu), `updated_at`, `deleted_at`, `notes`, `provider_notes` e `missing_evidence`.
+Cada elemento: `id`, `booking_id`, `property`, `property_address`, `type`, `scheduled_start_at`, `scheduled_end_at`, `started_at`, `is_overdue`, `service_provider_id`, `service_provider` (nome do prestador), `agreed_amount`, `status`, `completed_at`, `completed_by` (nome de quem concluiu), `evidence_accepted_at`, `evidence_accepted_by` (nome de quem aceitou sem evidência), `updated_at`, `deleted_at`, `notes`, `provider_notes` e `missing_evidence`.
 
 #### `GET /api/tasks/{id}` (admin e supervisor)
 
@@ -148,7 +170,7 @@ Devolve em `data` uma lista não paginada apenas com prestadores ativos, ordenad
 Edita os campos permitidos. Todos opcionais:
 
 | Campo | Regra |
-|---|---|
+| --- | --- |
 | `service_provider_id` | Inteiro de prestador existente com utilizador ativo; `null` é rejeitado |
 | `agreed_amount` | Numérico, nulo ou maior ou igual a 0 |
 | `notes` | Texto, nulo ou até 2000 caracteres |
@@ -159,7 +181,7 @@ Apenas administradores e supervisores podem enviar `service_provider_id`; outros
 
 Exemplo de atribuição ou reatribuição:
 
-```http
+```
 PATCH /api/tasks/42
 Accept: application/json
 Authorization: Bearer <token>
@@ -191,9 +213,13 @@ Cada alteração efetiva cria uma entrada em `task_assignment_history` com `task
 Cancela a task: `status` passa a `cancelled` e a task é apagada logicamente. Resposta `204`, sem corpo.
 
 - Idempotente: repetir o pedido numa task já cancelada responde `204`, sem alterar nada.
+
 - `422` se a task estiver `in_progress` ou `completed`.
+
 - `422` se a task já foi apagada por outra operação (`DELETE`): uma remoção administrativa não se transforma em cancelamento.
+
 - `404` se a task não existir.
+
 - Cada cancelamento efetivo regista uma entrada em `task_cancellation_history`. As origens possíveis são `manual`, `booking_cancelled` e `property_deactivated`; o utilizador é nulo quando o cancelamento é automático. Repetir um cancelamento não cria entradas duplicadas.
 
 #### `DELETE /api/tasks/{id}` (admin e supervisor)
@@ -202,9 +228,34 @@ Apaga logicamente a task, sem mudar o estado. Resposta `204`. Erro `422` se a ta
 
 #### `POST /api/tasks/{id}/complete` (admin e supervisor)
 
-Conclui uma task `in_progress`, mesmo que não esteja atribuída ao utilizador staff autenticado. A conclusão é idempotente e não exige foto nem vídeo. Uma task `pending` não pode ser concluída diretamente.
+Conclui uma task `pending` ou `in_progress`, mesmo que não esteja atribuída ao utilizador staff autenticado, desde que `scheduled_start_at` já tenha sido atingido. Antes desse horário, responde `422` com erro em `scheduled_start_at`. A conclusão é idempotente e não exige foto nem vídeo. O sistema guarda o autor em `completed_by_user_id` e devolve o nome em `completed_by`.
 
-Resposta `200` com o resource dentro de `data`. O sistema guarda o ID do autor em `completed_by_user_id` e devolve o nome em `completed_by`.
+Resposta `200` com o resource dentro de `data`.
+
+#### `POST /api/tasks/complete-many` (admin e supervisor)
+
+Conclui em lote de 1 a 100 tasks abertas (`pending` ou `in_progress`) e aceita explicitamente tasks já concluídas pelo prestador sem evidência. A operação é transacional: se qualquer task não puder ser concluída — inclusive por ainda não ter atingido `scheduled_start_at` — o lote inteiro é revertido e nenhuma task aberta é concluída.
+
+Corpo:
+
+```json
+{
+  "task_ids": [12, 19],
+  "accept_missing_evidence": true
+}
+```
+
+- `task_ids` é obrigatório e deve conter de 1 a 100 IDs distintos.
+
+- `accept_missing_evidence` é opcional e, por defeito, `false`.
+
+- Se a seleção incluir uma task `completed` pelo prestador sem evidência e ainda sem aceite, é necessário enviar `accept_missing_evidence: true`. Sem essa confirmação, a API responde `422` e não conclui nenhuma task aberta do lote.
+
+- O aceite grava `evidence_accepted_at` e `evidence_accepted_by_user_id`, sem alterar `completed_at` nem `completed_by_user_id`. Após o aceite, `missing_evidence` passa a `false`.
+
+- Tasks `pending` ou `in_progress` são concluídas pelo utilizador staff autenticado. Tasks já concluídas mantêm os dados originais da conclusão.
+
+- Resposta `200` com os resources das tasks em `data`.
 
 ### 6.2 Prestador
 
@@ -225,8 +276,11 @@ Detalhe de uma task atribuída ao prestador, dentro de `data`. Mesmos campos da 
 Inicia a task: `status` passa a `in_progress` e `started_at` fica com o momento atual. Resposta `200` com a task (mesmos campos do detalhe).
 
 - Idempotente: se a task já está `in_progress`, devolve-a sem alterar nada (`started_at` mantém-se).
+
 - Só tasks `pending` podem ser iniciadas; uma task `completed` responde `422`. As canceladas, por estarem apagadas, respondem `404`.
-- Por agora não há restrição de horário: o início não é bloqueado por `scheduled_start_at`. Uma task iniciada depois do fim da janela fica em atraso (`is_overdue`) até ser concluída.
+
+- Só pode iniciar a partir de `scheduled_start_at`; antes desse instante responde `422` com erro em `scheduled_start_at`. Uma task iniciada depois do fim da janela fica em atraso (`is_overdue`) até ser concluída.
+
 - Responde `404` se a task não existir, estiver apagada ou não for do prestador.
 
 #### `POST /api/my/tasks/{id}/complete` (service_provider)
@@ -234,10 +288,15 @@ Inicia a task: `status` passa a `in_progress` e `started_at` fica com o momento 
 Conclui a task: `status` passa a `completed` e `completed_at` fica com o momento atual. Resposta `200` com a task.
 
 - Idempotente: se a task já está `completed`, devolve-a sem alterar nada (`completed_at` mantém-se).
+
 - Só tasks `in_progress` podem ser concluídas; as restantes respondem `422`.
+
 - Foto e vídeo são opcionais; a conclusão não depende do envio de mídia.
+
 - As respostas incluem `missing_evidence`: é `true` quando a tarefa foi concluída pelo prestador sem foto nem vídeo. É `false` quando existe pelo menos uma foto ou um vídeo, ou quando a tarefa foi concluída por admin/supervisor.
+
 - Uma tarefa concluída por admin/supervisor não fica com mídia pendente.
+
 - Responde `404` se a task não existir, estiver apagada ou não for do prestador.
 
 #### `POST /api/my/tasks/{id}/evidence` (service_provider)
@@ -257,14 +316,14 @@ O arquivo é armazenado em disco privado e os metadados ficam associados à tare
 Atualiza `provider_notes`, um campo separado das notas administrativas (`notes`). O prestador envia o texto completo; cada atualização substitui o valor anterior. Enviar `null` limpa o campo.
 
 {
-  "provider_notes": "Apartamento muito sujo; um copo quebrado na cozinha."
+"provider_notes": "Apartamento muito sujo; um copo quebrado na cozinha."
 }
 
 ### 6.3 Permissões
 
 | Rotas | Perfil |
-|---|---|
-| `GET /api/tasks`, `GET /api/tasks/{id}`, `POST /api/tasks`, `PATCH`, `DELETE`, `cancel`, `restore`, `complete`, `GET /api/tasks/{id}/evidence`, `GET /api/tasks/{id}/evidence/{evidence}/file` | `admin` e `supervisor` |
+| --- | --- |
+| `GET /api/tasks`, `GET /api/tasks/{id}`, `POST /api/tasks`, `PATCH`, `DELETE`, `cancel`, `restore`, `complete`, `complete-many`, `GET /api/tasks/{id}/evidence`, `GET /api/tasks/{id}/evidence/{evidence}/file` | `admin` e `supervisor` |
 | `GET /api/my/tasks`, `GET /api/my/tasks/{id}`, `start`, `complete`, `PATCH /api/my/tasks/{id}/notes`, `POST /api/my/tasks/{id}/evidence` | `service_provider` |
 
 A verificação de perfil por rota é feita pelo middleware `role` nas rotas (ver secção 7).
@@ -272,15 +331,25 @@ A verificação de perfil por rota é feita pelo middleware `role` nas rotas (ve
 ## 7. Dependências e limitações
 
 - O funcionamento depende de reservas e propriedades válidas na base de dados.
+
 - **Autorização por perfil:** as rotas de gestão (`/tasks...`) exigem `admin` ou `supervisor`; as `/my/tasks/*` e os impedimentos exigem `service_provider` (middleware `role`). Um perfil sem permissão recebe `403`.
+
 - **Formato das respostas:** listagem, detalhe e endpoints de escrita que devolvem uma tarefa usam Resources com envelope `data`. Cancelamento e remoção respondem `204`, sem corpo.
+
 - `responsible_service_provider_id` define o prestador padrão usado apenas por novas tasks. Alterar esse campo não modifica tasks existentes nem o respetivo histórico. `base_cleaning_amount` ainda não é usado pelas Tasks. `access_instructions` já é devolvido no resource do prestador.
+
 - Se uma reserva importada não tiver um prestador padrão existente e ativo, a task de limpeza é criada com `service_provider_id: null`, sem histórico inicial nem aviso ao prestador, e aparece em `GET /api/tasks/assignment-warnings` (`no_default_provider` ou `default_provider_inactive`). A alteração posterior do padrão não reatribui essa task; a gestão deve atribuí-la manualmente.
+
 - A desativação de uma propriedade já cancela e apaga logicamente as tasks `pending` elegíveis. O bloqueio da desativação de um prestador com tarefas abertas ainda aguarda a integração de `ProviderOpenTasks` pelo módulo Properties.
+
 - A limpeza da reserva anterior da mesma propriedade **não é recalculada** quando um check-in entra, muda ou sai. O seu `scheduled_end_at` pode ficar desatualizado.
+
 - Pedidos simultâneos para criar a limpeza da mesma reserva: o índice único protege contra duplicados e o segundo pedido devolve a task já criada.
+
 - Reservas que não estejam `reserved` (por exemplo, canceladas) são tratadas como "reserva não encontrada" ao criar, atualizar ou restaurar.
+
 - A criação da limpeza corre numa fila (`QUEUE_CONNECTION=database`): é preciso um worker (`php artisan queue:work`) a correr.
+
 - Na inspeção restaurada, o início passa a ser o momento do restauro.
 
 ## 8. Integração com Reservations (Booking)
@@ -290,7 +359,7 @@ A verificação de perfil por rota é feita pelo middleware `role` nas rotas (ve
 Reservations comunica-se com Tasks pelo `booking_id`; não envia datas nem propriedade.
 
 | Evento em Reservations | Action de Tasks | Efeito | Estado |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Reserva criada ou reimportada | `CreateCheckoutCleaningTask->execute($bookingId)` | Cria a limpeza de checkout | Ligado pelo evento `BookingImported` |
 | Datas da reserva alteradas | `UpdateTask->forBooking($bookingId)` | Recalcula as datas das tasks elegíveis | Action existente; aguarda evento e listener |
 | Reserva cancelada | `CancelTask->forBooking($bookingId)` | Cancela e apaga logicamente tasks `pending`; preserva `in_progress` e `completed` | Action existente; aguarda evento e listener |
@@ -304,10 +373,12 @@ Cada reserva deve gerar uma única task por tipo. Evitar reservas duplicadas no 
 Um único ficheiro (`EloquentBookingDataProvider`) lê as tabelas `bookings` e `booking_sources` e devolve um `BookingSnapshot`. Só considera reservas com `status` `reserved`. Colunas usadas:
 
 - `bookings`: `id`, `status`, `booking_source_id`, `source_check_in_at`, `source_check_out_at`, `overridden_check_in_at`, `overridden_check_out_at`
+
 - `booking_sources`: `property_id`
+
 - `properties`: `default_check_out_time`, `default_check_in_time`, `timezone`, lidas por `DatabasePropertyScheduleProvider` (sem usar o módulo Properties) e enviadas no `BookingSnapshot` como `PropertySchedule`
 
-As datas efetivas são as `overridden_*` quando existem e, caso contrário, as `source_*`. **Renomear estas colunas ou mudar o valor de `status` quebra o módulo Tasks**, por isso fazem parte do contrato entre os dois módulos. O próximo check-in é a reserva ativa mais próxima da mesma propriedade com check-in na data do check-out ou depois dela.
+As datas efetivas são as `overridden_*` quando existem e, caso contrário, as `source_*`. **Renomear estas colunas ou mudar o valor de ****`status`**** quebra o módulo Tasks**, por isso fazem parte do contrato entre os dois módulos. O próximo check-in é a reserva ativa mais próxima da mesma propriedade com check-in na data do check-out ou depois dela.
 
 Quando o Booking passar a ser um serviço próprio, só este provider é substituído (por exemplo, por um que faça chamadas HTTP).
 
@@ -328,10 +399,15 @@ $action->execute(bookingId: 12);
 A Task lê a reserva 12. Com check-out a 20/10/2026, próximo check-in da mesma propriedade a 22/10/2026 e uma propriedade sem horas de referência, resulta:
 
 - `booking_id`: `12`
+
 - `property_id`: o da reserva
+
 - `type`: `checkout_cleaning`
+
 - `status`: `pending`
+
 - `scheduled_start_at`: 20/10/2026, 11:30
+
 - `scheduled_end_at`: 22/10/2026, 14:30
 
 Este exemplo é ilustrativo e não representa uma execução confirmada na base de dados.
@@ -344,7 +420,7 @@ Sem próxima reserva conhecida na propriedade, a task começa às 11:30 do dia d
 
 Pedido do adm no dia 10/10/2026 às 09:00, para uma reserva com check-in a 15/10/2026:
 
-```http
+```
 POST /api/tasks
 { "booking_id": 12 }
 ```
@@ -352,6 +428,7 @@ POST /api/tasks
 Resultado: `type` `checkin_inspection`, `status` `pending`, `scheduled_start_at` 10/10/2026 09:00 e `scheduled_end_at` 15/10/2026 14:30.
 
 ### 9.4 Resposta de `GET /api/tasks` (staff)
+
 ```json
 {
   "data": [
@@ -371,6 +448,8 @@ Resultado: `type` `checkin_inspection`, `status` `pending`, `scheduled_start_at`
       "status": "pending",
       "completed_at": null,
       "completed_by": null,
+      "evidence_accepted_at": null,
+      "evidence_accepted_by": null,
       "updated_at": "2026-10-20T09:00:00.000000Z",
       "deleted_at": null
     }
@@ -406,7 +485,7 @@ O prestador não recebe `booking_id`, `service_provider`, `service_provider_id` 
 ## 10. Lembretes para a equipa
 
 | Responsável | Pendência |
-|---|---|
+| --- | --- |
 | Reservations | Emitir eventos após o commit para reservas atualizadas, canceladas e removidas, e ligar esses eventos às Actions de Tasks já existentes. |
 | Properties | Usar `ProviderOpenTasks` no fluxo de desativação de prestadores para verificar se existem tarefas abertas. O contrato e a implementação Eloquent já existem; falta integrá-los no fluxo de Properties. |
 
@@ -415,5 +494,7 @@ Estes lembretes correspondem aos comentários `TODO` nas rotas e no `AppServiceP
 ### Melhorias futuras
 
 - A tarefa continua podendo ser concluída sem foto ou vídeo; media é opcional.
+
 - Recalcular a limpeza da reserva anterior quando o check-in seguinte mudar.
+
 - Integrar listagem, detalhe e execução das tarefas na interface web/mobile.

@@ -22,10 +22,13 @@ class TaskProviderResource extends JsonResource
             'has_video' => (bool) ($this->has_video ?? $this->videos()->exists()),
             'missing_evidence' => $this->status === 'completed'
                 && $this->completedBy?->hasRole('service_provider') === true
+                && $this->evidence_accepted_at === null
                 && !(
                     (bool) ($this->has_video ?? $this->videos()->exists())
                     || (bool) ($this->has_evidence ?? $this->evidences()->exists())
                 ),
+            'evidence_accepted_at' => $this->evidence_accepted_at,
+            'evidence_accepted_by' => $this->evidenceAcceptedBy?->name,
             'started_at' => $this->started_at,
             'completed_at' => $this->completed_at,
             'provider_notes' => $this->provider_notes,

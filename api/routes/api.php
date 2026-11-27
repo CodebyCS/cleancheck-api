@@ -106,6 +106,7 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->whereNumber('task');
         Route::post('/tasks/{task}/restore', [TaskController::class, 'restore'])->whereNumber('task');
         Route::post('/tasks/{task}/cancel', [TaskController::class, 'cancel'])->whereNumber('task');
+        Route::post('/tasks/complete-many', [TaskController::class, 'completeMany']);
         Route::post('/tasks/{task}/complete', [TaskController::class, 'complete'])->whereNumber('task');
         
         // Bookings
