@@ -29,6 +29,7 @@ class StoreTaskExecutionRequest extends FormRequest
             'observations' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'evidence_ids' => ['sometimes', 'array', 'list', 'max:100'],
             'evidence_ids.*' => ['required', 'integer', 'min:1', 'distinct'],
+            'correction_of_execution_id' => ['sometimes', 'integer', 'min:1'],
             'user_id' => ['prohibited'],
             'task_id' => ['prohibited'],
             'send_state' => ['prohibited'],

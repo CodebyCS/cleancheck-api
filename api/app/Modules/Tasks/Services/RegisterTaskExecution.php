@@ -26,11 +26,17 @@ class RegisterTaskExecution
             usort($responses, fn (array $a, array $b): int => strcmp($a['key'], $b['key']));
             $evidenceIds = array_map('intval', $data['evidence_ids'] ?? []);
             sort($evidenceIds);
+            $correctionOfExecutionId = isset($data['correction_of_execution_id'])
+                ? (int) $data['correction_of_execution_id']
+                : null;
             $payload = [
                 'responses' => $responses,
                 'observations' => $data['observations'] ?? null,
                 'evidence_ids' => $evidenceIds,
             ];
+            if ($correctionOfExecutionId !== null) {
+                $payload['correction_of_execution_id'] = $correctionOfExecutionId;
+            }
             $hash = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
             $existing = TaskExecution::query()->where('task_id', $taskId)
                 ->where('user_id', $user->id)->where('idempotency_key', $data['idempotency_key'])->first();
@@ -39,6 +45,30 @@ class RegisterTaskExecution
                     'A chave de idempotência já foi usada com dados diferentes.');
 
                 return ['record' => $existing, 'created' => false];
+            }
+
+            if ($correctionOfExecutionId !== null) {
+                $rejectedExecution = TaskExecution::query()->whereKey($correctionOfExecutionId)
+                    ->where('task_id', $task->id)
+                    ->whereHas('rejection')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($rejectedExecution === null) {
+                    throw ValidationException::withMessages([
+                        'correction_of_execution_id' => 'A execução a corrigir tem de estar rejeitada e pertencer a esta tarefa.',
+                    ]);
+                }
+
+                if (TaskExecution::query()->where('correction_of_execution_id', $rejectedExecution->id)->exists()) {
+                    abort(409, 'Esta execução rejeitada já tem uma correção registada.');
+                }
+
+                if ($task->status !== 'rejected') {
+                    throw ValidationException::withMessages([
+                        'correction_of_execution_id' => 'A tarefa tem de estar rejeitada para receber uma correção.',
+                    ]);
+                }
             }
 
             $evidences = TaskEvidence::query()->whereIn('id', $evidenceIds)
@@ -58,6 +88,7 @@ class RegisterTaskExecution
             $execution = TaskExecution::query()->create([
                 'task_id' => $task->id,
                 'user_id' => $user->id,
+                'correction_of_execution_id' => $correctionOfExecutionId,
                 'idempotency_key' => $data['idempotency_key'],
                 'payload_hash' => $hash,
                 'responses' => $responses,
@@ -66,6 +97,14 @@ class RegisterTaskExecution
                 'confirmed_at' => now(),
             ]);
             $execution->evidences()->attach($evidenceIds);
+
+            if ($correctionOfExecutionId !== null) {
+                $task->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'completed_by_user_id' => $user->id,
+                ]);
+            }
 
             return ['record' => $execution, 'created' => true];
         });
