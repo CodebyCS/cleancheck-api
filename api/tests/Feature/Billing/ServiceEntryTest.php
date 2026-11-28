@@ -9,8 +9,13 @@ use App\Modules\Billing\Services\RecordServiceEntry;
 use App\Modules\Properties\Models\Property;
 use App\Modules\Properties\Models\ServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 
 uses(RefreshDatabase::class);
+
+// Tasks can only be completed after their scheduled start, and these scenarios are set in
+// November and December 2026. Run them from a fixed date after all of them.
+beforeEach(fn () => $this->travelTo(Carbon::parse('2027-01-15 12:00:00')));
 
 function billingProperty(array $attributes = []): Property
 {
