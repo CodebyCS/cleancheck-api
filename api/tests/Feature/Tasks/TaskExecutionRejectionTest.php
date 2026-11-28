@@ -145,7 +145,6 @@ it('stores a correction as a new execution on the same task and preserves the re
     $previousEvidence = taskExecutionRejectionEvidence($this->task, $this->author->id, 'previous.jpg');
     $this->body['evidence_ids'] = [$previousEvidence->id];
     $rejectedId = createTaskExecutionForRejectionTest();
-    $originalCompletionAt = $this->task->fresh()->completed_at;
     authenticateApiUser(userWithRole('supervisor'));
     $this->postJson("/api/tasks/{$this->task->id}/executions/{$rejectedId}/reject", [
         'reason' => 'Retake the kitchen photo and correct the checklist response.',
@@ -165,6 +164,7 @@ it('stores a correction as a new execution on the same task and preserves the re
         'correction_of_execution_id' => $rejectedId,
     ]);
     $this->travel(1)->minutes();
+    $correctionCompletedAt = now();
     $correctionId = $this->postJson($this->url, $corrected)->assertCreated()
         ->assertJsonPath('data.task_id', $this->task->id)
         ->assertJsonPath('data.correction_of_execution_id', $rejectedId)
@@ -178,7 +178,7 @@ it('stores a correction as a new execution on the same task and preserves the re
     expect($correctionId)->not->toBe($rejectedId)
         ->and($this->task->fresh()->status)->toBe('completed')
         ->and($this->task->fresh()->completed_by_user_id)->toBe($this->author->id)
-        ->and($this->task->fresh()->completed_at->gt($originalCompletionAt))->toBeTrue()
+        ->and($this->task->fresh()->completed_at->toDateTimeString())->toBe($correctionCompletedAt->toDateTimeString())
         ->and(TaskExecution::findOrFail($rejectedId)->responses)->toBe($this->body['responses'])
         ->and(TaskExecution::findOrFail($rejectedId)->evidences->sole()->id)->toBe($previousEvidence->id)
         ->and(TaskExecutionRejection::where('task_execution_id', $rejectedId)->value('reason'))
