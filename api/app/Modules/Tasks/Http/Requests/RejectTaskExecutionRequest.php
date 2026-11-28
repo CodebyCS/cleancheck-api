@@ -14,7 +14,7 @@ class RejectTaskExecutionRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['reason' => ['required', 'string']];
+        return ['reason' => ['required', 'string', 'max:500']];
     }
 
     public function messages(): array
@@ -22,6 +22,7 @@ class RejectTaskExecutionRequest extends FormRequest
         return [
             'reason.required' => 'Indica o motivo e os passos de correção pedidos ao prestador.',
             'reason.string' => 'O motivo tem de ser texto.',
+            'reason.max' => 'O motivo pode ter no máximo 500 caracteres.',
         ];
     }
 }

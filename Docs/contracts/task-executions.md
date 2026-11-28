@@ -66,7 +66,7 @@ A vistoria de entrada continua a ser a tarefa `checkin_inspection`, com o contra
 
 ### Rejeitar uma execução (Admin/Supervisor)
 
-`POST /api/tasks/{task}/executions/{execution}/reject` exige sessão válida, conta ativa e perfil `admin` ou `supervisor`. O motivo é obrigatório, texto livre e não tem limite de comprimento na validação da API. Uma execução só pode ser rejeitada uma vez; repetir a rejeição responde `409`.
+`POST /api/tasks/{task}/executions/{execution}/reject` exige sessão válida, conta ativa e perfil `admin` ou `supervisor`. O motivo é obrigatório, texto livre, com máximo de 500 caracteres. Uma execução só pode ser rejeitada uma vez; repetir a rejeição responde `409`.
 
 ```json
 { "reason": "Corrigir a resposta de limpeza da cozinha e anexar uma fotografia atualizada." }
@@ -100,7 +100,7 @@ O prestador corrige através do endpoint de execução existente, `POST /api/my/
 }
 ```
 
-A correção cria uma nova execução ligada à mesma tarefa; não cria outra tarefa nem altera a execução rejeitada. Respostas, evidências e autoria anteriores mantêm-se. A nova execução fica com o autor autenticado e as evidências têm de pertencer à mesma tarefa e a esse autor. A submissão da correção exige que a tarefa esteja `rejected`; depois da persistência, a tarefa volta a `completed`, com `completed_at` e `completed_by_user_id` definidos para o prestador que enviou a correção. Cada execução rejeitada aceita uma única correção. O `correction_of_execution_id` é incluído no conteúdo protegido pela chave de idempotência.
+A correção cria uma nova execução ligada à mesma tarefa; não cria outra tarefa nem altera a execução rejeitada. Respostas, evidências e autoria anteriores mantêm-se. A nova execução fica com o autor autenticado e as evidências têm de pertencer à mesma tarefa e a esse autor. A submissão da correção exige que a tarefa esteja `rejected`; depois da persistência, a tarefa volta a `completed`, e `completed_at` e `completed_by_user_id` são atualizados para a nova conclusão (momento e prestador que enviou a correção). A data e autoria da tentativa original continuam preservadas no histórico da execução anterior. Cada execução rejeitada aceita uma única correção. O `correction_of_execution_id` é incluído no conteúdo protegido pela chave de idempotência.
 
 Após reatribuição, o prestador atualmente atribuído pode consultar o histórico e corrigir uma execução rejeitada da tarefa. O prestador anterior deixa de poder consultar ou escrever e recebe `404`. A autoria de cada tentativa continua visível no histórico.
 

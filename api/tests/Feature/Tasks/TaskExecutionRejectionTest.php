@@ -50,12 +50,12 @@ function createTaskExecutionForRejectionTest(): int
     return test()->postJson(test()->url, test()->body)->assertCreated()->json('data.id');
 }
 
-it('allows admins and supervisors to reject an execution with an unlimited free-text reason', function (string $role) {
+it('allows admins and supervisors to reject an execution with a reason up to 500 characters', function (string $role) {
     $evidence = taskExecutionRejectionEvidence($this->task, $this->author->id, 'before.jpg');
     $this->body['evidence_ids'] = [$evidence->id];
     $executionId = createTaskExecutionForRejectionTest();
     $staff = userWithRole($role);
-    $reason = rtrim(str_repeat('Please correct the kitchen checklist and attach a new photo. ', 30));
+    $reason = str_repeat('R', 500);
     $taskBeforeRejection = $this->task->fresh()->getAttributes();
     authenticateApiUser($staff);
 
@@ -95,6 +95,10 @@ it('requires a non-empty reason and rejects a second rejection without overwriti
     $url = "/api/tasks/{$this->task->id}/executions/{$executionId}/reject";
 
     $this->postJson($url, [])->assertUnprocessable()->assertJsonValidationErrors('reason');
+    $this->postJson($url, ['reason' => str_repeat('R', 501)])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reason')
+        ->assertJsonPath('errors.reason.0', 'O motivo pode ter no máximo 500 caracteres.');
     $this->postJson($url, ['reason' => 'Initial correction request'])->assertCreated();
     $this->postJson($url, ['reason' => 'Replacement reason'])->assertConflict();
 
@@ -141,6 +145,7 @@ it('stores a correction as a new execution on the same task and preserves the re
     $previousEvidence = taskExecutionRejectionEvidence($this->task, $this->author->id, 'previous.jpg');
     $this->body['evidence_ids'] = [$previousEvidence->id];
     $rejectedId = createTaskExecutionForRejectionTest();
+    $originalCompletionAt = $this->task->fresh()->completed_at;
     authenticateApiUser(userWithRole('supervisor'));
     $this->postJson("/api/tasks/{$this->task->id}/executions/{$rejectedId}/reject", [
         'reason' => 'Retake the kitchen photo and correct the checklist response.',
@@ -159,6 +164,7 @@ it('stores a correction as a new execution on the same task and preserves the re
         'evidence_ids' => [$newEvidenceId],
         'correction_of_execution_id' => $rejectedId,
     ]);
+    $this->travel(1)->minutes();
     $correctionId = $this->postJson($this->url, $corrected)->assertCreated()
         ->assertJsonPath('data.task_id', $this->task->id)
         ->assertJsonPath('data.correction_of_execution_id', $rejectedId)
@@ -172,7 +178,7 @@ it('stores a correction as a new execution on the same task and preserves the re
     expect($correctionId)->not->toBe($rejectedId)
         ->and($this->task->fresh()->status)->toBe('completed')
         ->and($this->task->fresh()->completed_by_user_id)->toBe($this->author->id)
-        ->and($this->task->fresh()->completed_at)->not->toBeNull()
+        ->and($this->task->fresh()->completed_at->gt($originalCompletionAt))->toBeTrue()
         ->and(TaskExecution::findOrFail($rejectedId)->responses)->toBe($this->body['responses'])
         ->and(TaskExecution::findOrFail($rejectedId)->evidences->sole()->id)->toBe($previousEvidence->id)
         ->and(TaskExecutionRejection::where('task_execution_id', $rejectedId)->value('reason'))
@@ -231,6 +237,7 @@ it('allows only the newly assigned provider to inspect history and submit a corr
     $this->postJson($this->url, $correction)->assertCreated()
         ->assertJsonPath('data.correction_of_execution_id', $rejectedId)
         ->assertJsonPath('data.user_id', $newProviderUser->id);
+    expect($this->task->fresh()->completed_by_user_id)->toBe($newProviderUser->id);
     $this->getJson($this->url)->assertOk()
         ->assertJsonPath('data.0.correction_of_execution_id', $rejectedId)
         ->assertJsonPath('data.1.rejection.reason', 'Please retake the photo.');
