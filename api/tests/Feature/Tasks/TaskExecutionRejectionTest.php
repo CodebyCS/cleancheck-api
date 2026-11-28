@@ -182,6 +182,26 @@ it('stores a correction as a new execution on the same task and preserves the re
     $this->assertDatabaseCount('task_execution_evidence', 2);
     Storage::disk('task_evidence')->assertExists($previousEvidence->path);
     Storage::disk('task_evidence')->assertExists(TaskEvidence::findOrFail($newEvidenceId)->path);
+
+    authenticateApiUser(userWithRole('supervisor'));
+    $this->postJson("/api/tasks/{$this->task->id}/executions/{$rejectedId}/reject", [
+        'reason' => 'This older attempt must not be rejected again.',
+    ])->assertUnprocessable()->assertJsonValidationErrors('execution_id');
+
+    expect($this->task->fresh()->status)->toBe('completed')
+        ->and(TaskExecutionRejection::where('task_execution_id', $rejectedId)->value('reason'))
+        ->toBe('Retake the kitchen photo and correct the checklist response.')
+        ->and(TaskExecutionRejection::where('task_execution_id', $correctionId)->exists())->toBeFalse();
+    $this->assertDatabaseCount('task_execution_rejections', 1);
+
+    $this->postJson("/api/tasks/{$this->task->id}/executions/{$correctionId}/reject", [
+        'reason' => 'The latest corrected attempt still needs another change.',
+    ])->assertCreated();
+
+    expect($this->task->fresh()->status)->toBe('rejected')
+        ->and(TaskExecutionRejection::where('task_execution_id', $correctionId)->value('reason'))
+        ->toBe('The latest corrected attempt still needs another change.');
+    $this->assertDatabaseCount('task_execution_rejections', 2);
 });
 
 it('allows only the newly assigned provider to inspect history and submit a correction after reassignment', function () {

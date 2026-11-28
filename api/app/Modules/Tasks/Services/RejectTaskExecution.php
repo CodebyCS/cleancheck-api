@@ -7,6 +7,7 @@ use App\Models\TaskExecution;
 use App\Models\TaskExecutionRejection;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class RejectTaskExecution
 {
@@ -16,6 +17,17 @@ class RejectTaskExecution
             $task = Task::query()->whereKey($taskId)->lockForUpdate()->firstOrFail();
             $execution = TaskExecution::query()->whereKey($executionId)
                 ->where('task_id', $taskId)->lockForUpdate()->firstOrFail();
+
+            $latestExecutionId = TaskExecution::query()
+                ->where('task_id', $taskId)
+                ->orderByDesc('id')
+                ->value('id');
+
+            if ((int) $latestExecutionId !== $execution->id) {
+                throw ValidationException::withMessages([
+                    'execution_id' => 'Só é possível rejeitar a execução mais recente da tarefa.',
+                ]);
+            }
 
             if ($execution->rejection()->exists()) {
                 abort(409, 'Esta execução já foi rejeitada.');
