@@ -48,7 +48,7 @@ class Task extends Model
 
     public function isOverdue(): bool
     {
-        if (! in_array($this->status, ['pending', 'in_progress'], true)) {
+        if (! in_array($this->status, ['pending', 'in_progress', 'rejected'], true)) {
             return false;
         }
 

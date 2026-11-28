@@ -96,6 +96,8 @@ Route::middleware(['auth:sanctum', 'access.valid'])->group(function () : void {
         Route::get('/tasks/assignment-warnings', [TaskAssignmentWarningController::class, 'index']);
         Route::get('/tasks/{task}', [TaskController::class, 'show'])->whereNumber('task');
         Route::get('/tasks/{task}/executions', [TaskExecutionController::class, 'index'])->whereNumber('task');
+        Route::post('/tasks/{task}/executions/{execution}/reject', [TaskExecutionController::class, 'reject'])
+            ->whereNumber('task')->whereNumber('execution');
         Route::get('/tasks/{task}/checkout-inspection', [TaskCheckoutInspectionController::class, 'index'])->whereNumber('task');
         Route::get('/tasks/{task}/evidence', [TaskEvidenceController::class, 'index'])
             ->whereNumber('task');

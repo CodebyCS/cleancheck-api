@@ -11,7 +11,7 @@ class EloquentProviderOpenTasks implements ProviderOpenTasks
     {
         return Task::query()
             ->where('service_provider_id', $serviceProviderId)
-            ->whereIn('status', ['pending', 'in_progress'])
+            ->whereIn('status', ['pending', 'in_progress', 'rejected'])
             ->count();
     }
 }

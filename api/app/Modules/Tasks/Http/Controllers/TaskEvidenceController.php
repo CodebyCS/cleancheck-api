@@ -28,9 +28,9 @@ class TaskEvidenceController extends Controller
             ->where('service_provider_id', $providerId)
             ->firstOrFail();
 
-        if (!in_array($taskModel->status, ['in_progress', 'completed'], true)) {
+        if (!in_array($taskModel->status, ['in_progress', 'completed', 'rejected'], true)) {
             throw ValidationException::withMessages([
-                'status' => 'Só é possível anexar mídia a tarefas em andamento ou concluídas.',
+                'status' => 'Só é possível anexar mídia a tarefas em andamento, rejeitadas ou concluídas.',
             ]);
         }
 
@@ -50,9 +50,9 @@ class TaskEvidenceController extends Controller
                 // Recheck ownership after the upload: reassignment may have occurred meanwhile.
                 $current = Task::query()->whereKey($taskModel->id)
                     ->where('service_provider_id', $providerId)->lockForUpdate()->firstOrFail();
-                if (! in_array($current->status, ['in_progress', 'completed'], true)) {
+                if (! in_array($current->status, ['in_progress', 'completed', 'rejected'], true)) {
                     throw ValidationException::withMessages([
-                        'status' => 'Só é possível anexar mídia a tarefas em andamento ou concluídas.',
+                        'status' => 'Só é possível anexar mídia a tarefas em andamento, rejeitadas ou concluídas.',
                     ]);
                 }
 

@@ -69,7 +69,7 @@ class ListTasks
             ->when(
                 filter_var($filters['overdue'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 fn ($q) => $q
-                    ->whereIn('status', ['pending', 'in_progress'])
+                    ->whereIn('status', ['pending', 'in_progress', 'rejected'])
                     ->whereNotNull('scheduled_end_at')
                     ->where('scheduled_end_at', '<', now()),
             )
